@@ -1,0 +1,60 @@
+name: Feature request
+description: Suggest an enhancement for LDAPADvisor Android
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem and the feature you would like.
+        Do not include production credentials, hostnames, or directory dumps.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What problem or limitation are you facing?
+      placeholder: As an AD admin, I need to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed feature
+      description: What would you like LDAPADvisor to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: How would you use this feature in practice?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Platform / environment
+      description: Relevant Android version, directory server type, or deployment context (sanitized).
+      placeholder: Android 14, Microsoft Active Directory, documentation domain examples only
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or alternative approaches you already evaluated.
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional information
+      description: Mockups, references, or other notes (no sensitive data).
+    validations:
+      required: false

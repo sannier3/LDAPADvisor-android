@@ -1,0 +1,131 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Gradle files
+.gradle/
+build/
+**/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Android Studio / IntelliJ IDEA
+*.iml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries/
+.idea/shelf/
+.idea/caches/
+.idea/libraries/
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/androidDecorXml.xml
+.idea/deploymentTargetDropDown.xml
+.idea/deploymentTargetSelector.xml
+.idea/misc.xml
+.idea/modules.xml
+.idea/*.tmp
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+
+# Keep shared IDE project settings (code style, run configs, compiler, etc.)
+# Do not ignore the entire .idea/ directory.
+
+# NDK
+.externalNativeBuild/
+.cxx/
+obj/
+
+# Android Studio captures / profiling
+captures/
+*.hprof
+
+# Google Services (uncomment if generated locally and not meant to be shared)
+# google-services.json
+
+# Signing / secrets — never commit these
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+secrets.properties
+.env
+.env.*
+*.pem
+*.p12
+*.key
+
+# Credentials / sensitive docs
+**/credentials*.json
+**/secrets/
+*.secret
+
+# Log files
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Cursor / editor local state
+.cursor/
+*.swp
+*~
+.vscode/
+!.vscode/extensions.json
+
+# Kotlin
+.kotlin/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
+
+# Lint / test outputs that should not be versioned
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
+
+# Package Files
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
