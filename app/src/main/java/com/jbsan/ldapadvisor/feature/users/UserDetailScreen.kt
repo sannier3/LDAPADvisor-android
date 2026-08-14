@@ -190,14 +190,15 @@ fun UserDetailScreen(
                 viewModel.update { f -> f.copy(country = it) }
             }
             if (!ui.readOnly) {
+                val saveContactLabel = stringResource(R.string.user_action_save_contact)
                 Button(
                     onClick = { viewModel.saveIdentityAndContact() },
                     enabled = !ui.saving,
                     modifier = ComposeModifier.fillMaxWidth().semantics {
-                        contentDescription = context.getString(R.string.user_action_save_contact)
+                        contentDescription = saveContactLabel
                     },
                 ) {
-                    Text(stringResource(R.string.user_action_save_contact))
+                    Text(saveContactLabel)
                 }
             }
         }
