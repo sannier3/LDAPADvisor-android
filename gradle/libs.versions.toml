@@ -21,7 +21,7 @@ workManager = "2.10.1"
 securityCrypto = "1.1.0-alpha06"
 desugarJdkLibs = "2.1.5"
 kerby = "2.1.0"
-slf4j = "2.0.16"
+slf4j = "2.0.18"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
