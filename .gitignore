@@ -16,37 +16,23 @@ gen/
 out/
 release/
 
-# Gradle files
+# Gradle
 .gradle/
 build/
 **/build/
 
-# Local configuration file (sdk path, etc)
+# Local SDK / machine config — never publish
 local.properties
 
-# Android Studio / IntelliJ IDEA
+# IDE — keep the public repo free of editor/machine noise
+.idea/
 *.iml
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/usage.statistics.xml
-.idea/dictionaries/
-.idea/shelf/
-.idea/caches/
-.idea/libraries/
-.idea/navEditor.xml
-.idea/assetWizardSettings.xml
-.idea/androidDecorXml.xml
-.idea/deploymentTargetDropDown.xml
-.idea/deploymentTargetSelector.xml
-.idea/misc.xml
-.idea/modules.xml
-.idea/*.tmp
-.idea/**/workspace.xml
-.idea/**/tasks.xml
-.idea/**/usage.statistics.xml
+.fleet/
+.vscode/
+!.vscode/extensions.json
 
-# Keep shared IDE project settings (code style, run configs, compiler, etc.)
-# Do not ignore the entire .idea/ directory.
+# Cursor local state (not part of the published app)
+.cursor/
 
 # NDK
 .externalNativeBuild/
@@ -56,9 +42,8 @@ obj/
 # Android Studio captures / profiling
 captures/
 *.hprof
-
-# Google Services (uncomment if generated locally and not meant to be shared)
-# google-services.json
+hs_err_pid*
+replay_pid*
 
 # Signing / secrets — never commit these
 *.jks
@@ -72,13 +57,15 @@ secrets.properties
 *.p12
 *.key
 
-# Credentials / sensitive docs
+# Credentials / sensitive paths
 **/credentials*.json
 **/secrets/
 *.secret
 
-# Log files
+# Log / local build artefacts
 *.log
+/build-*.log
+/build-*.txt
 
 # OS generated files
 .DS_Store
@@ -91,12 +78,9 @@ Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
-# Cursor / editor local state
-.cursor/
+# Editor junk
 *.swp
 *~
-.vscode/
-!.vscode/extensions.json
 
 # Kotlin
 .kotlin/
@@ -108,22 +92,23 @@ fastlane/screenshots
 fastlane/test_output
 fastlane/readme.md
 
-# Lint / test outputs that should not be versioned
+# Lint leftovers outside build/
 lint/intermediates/
 lint/generated/
 lint/outputs/
 lint/tmp/
 
-# Package Files
+# Package archives (keep the Gradle wrapper JAR)
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
+!**/libs/*.jar
 *.war
 *.ear
 *.zip
 *.tar.gz
 *.rar
 
-# Temporary files
+# Temporary / patch leftovers
 *.tmp
 *.temp
 *.bak

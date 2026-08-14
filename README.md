@@ -7,7 +7,7 @@ Native Android toolkit for LDAP and Microsoft Active Directory administration, e
 
 ## About
 
-LDAPADvisor Android is a future native Android application for:
+LDAPADvisor Android is a native Android application for:
 
 - system administrators
 - IT technicians
@@ -15,51 +15,41 @@ LDAPADvisor Android is a future native Android application for:
 - Active Directory administrators
 - LDAP administrators
 
-The long-term goal is to enable the following directly from Android devices (roadmap only — not yet available):
-
-- LDAP/LDAPS connectivity
-- Active Directory discovery
-- LDAP directory browsing
-- user management
-- group management
-- computer inspection
-- DNS diagnostics
-- LDAP diagnostics
-- LDAPS/TLS diagnostics
-- Global Catalog diagnostics
-- Active Directory diagnostics
-- technical reports
-
-These items describe intended capabilities. Do not treat them as shipped features.
+Current builds (`0.1.0`) include working LDAP/LDAPS/StartTLS connectivity, AD discovery, directory browsing, selected AD administration actions, diagnostics, advisor findings, and report export. Treat results carefully: the project is still early, and some flows remain limited or unsupported (see [docs/implementation-status.md](docs/implementation-status.md) and [docs/limitations.md](docs/limitations.md)).
 
 ## Planned Features
 
-- [ ] LDAP connection profiles
-- [ ] LDAP and LDAPS support
-- [ ] StartTLS support
-- [ ] Active Directory discovery through DNS SRV
-- [ ] RootDSE inspection
-- [ ] LDAP directory browser
-- [ ] Advanced LDAP search
-- [ ] Active Directory users
-- [ ] Active Directory groups
-- [ ] Active Directory computers
-- [ ] Organizational Units
-- [ ] Account unlock
-- [ ] Account enable/disable
-- [ ] Password reset over secure LDAP
-- [ ] Group membership management
-- [ ] DNS diagnostics
-- [ ] TCP connectivity diagnostics
-- [ ] TLS certificate diagnostics
-- [ ] Global Catalog diagnostics
+- [x] LDAP connection profiles
+- [x] LDAP and LDAPS support
+- [x] StartTLS support
+- [x] Active Directory discovery through DNS SRV
+- [x] RootDSE inspection
+- [x] LDAP directory browser
+- [x] Advanced LDAP search
+- [x] Active Directory users
+- [x] Active Directory groups
+- [x] Active Directory computers
+- [x] Organizational Units
+- [x] Account unlock
+- [x] Account enable/disable
+- [x] Password reset over secure LDAP
+- [x] Group membership management
+- [x] DNS diagnostics
+- [x] TCP connectivity diagnostics
+- [x] TLS certificate diagnostics
+- [x] Global Catalog diagnostics
 - [ ] Kerberos-related diagnostics
-- [ ] Diagnostic reports
+- [x] Diagnostic reports
+
+Kerberos **authentication** and GSSAPI bind remain **unsupported** on Android in this app. DNS/TCP Kerberos probes exist inside the diagnostics engine, but the planned “Kerberos-related diagnostics” checkbox stays unchecked until that area is considered complete for operators.
+
+Object creation UI (create user/group/OU) is **limited** (message screens only) and is not listed as complete above.
 
 ## Platform
 
 - Android 7.0 (API 24) or later
 - Native Kotlin application
+- `compileSdk` / `targetSdk` 37 (`versionName` `0.1.0`)
 
 ## Technology
 
@@ -71,22 +61,36 @@ Currently used in this repository:
 - Gradle Kotlin DSL
 - Android Gradle Plugin
 - Gradle Wrapper
-
-### Planned technical components
-
-The following are **not** included yet and may be adopted later:
-
-- LDAP client libraries
-- DNS / SRV discovery helpers
-- Secure local storage for credentials
-- Structured diagnostics engine
-- Report generation
+- UnboundID LDAP SDK
+- MiniDNS (AD DNS SRV discovery)
+- AndroidX Room + DataStore
+- Android Keystore AES-GCM secret store
+- Kotlin Coroutines + Serialization
+- Core library desugaring (`java.time`)
+- FileProvider report sharing
+- Dependabot (weekly Gradle + GitHub Actions)
 
 ## Project Status
 
-**Early development**
+**Early development** (`0.1.0`)
 
-This repository currently provides project foundation, documentation, and CI scaffolding. No stable release is announced.
+Core LDAP/AD, diagnostics, advisor, and reporting paths are implemented in-tree. No stable production release is announced. See [docs/implementation-status.md](docs/implementation-status.md).
+
+## Documentation
+
+- [Implementation status](docs/implementation-status.md)
+- [Architecture](docs/architecture.md)
+- [Dependencies](docs/dependencies.md)
+- [LDAP](docs/ldap.md)
+- [Active Directory](docs/active-directory.md)
+- [Diagnostics](docs/diagnostics.md)
+- [Security](docs/security.md)
+- [Reports](docs/reports.md)
+- [Limitations](docs/limitations.md)
+- [Testing](docs/testing.md)
+- [Privacy](PRIVACY.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Roadmap](docs/roadmap.md)
 
 ## Building
 
@@ -110,11 +114,11 @@ This repository currently provides project foundation, documentation, and CI sca
 
 - Android Studio (current stable recommended)
 - JDK matching the project Gradle toolchain (see `gradle/gradle-daemon-jvm.properties`)
-- Android SDK with a platform matching the project's `compileSdk`
+- Android SDK with a platform matching the project's `compileSdk` (37 in this tree; SDK 36 may be absent locally)
 
 ## Security
 
-LDAPADvisor may eventually handle sensitive operational data, including:
+LDAPADvisor handles sensitive operational data, including:
 
 - LDAP credentials
 - Active Directory credentials
@@ -124,7 +128,7 @@ LDAPADvisor may eventually handle sensitive operational data, including:
 
 **Never commit real credentials, private certificates, signing keys or production Active Directory information to the repository.**
 
-See [SECURITY.md](SECURITY.md) for vulnerability reporting guidance.
+See [SECURITY.md](SECURITY.md), [docs/security.md](docs/security.md), and [PRIVACY.md](PRIVACY.md).
 
 ## Test Data
 

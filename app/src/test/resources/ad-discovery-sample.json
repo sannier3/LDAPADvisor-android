@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "domain": "corp.example.com",
+  "hosts": [
+    "dc01.corp.example.com",
+    "dc02.corp.example.com"
+  ],
+  "addresses": [
+    "192.0.2.10",
+    "192.0.2.11"
+  ],
+  "srv": {
+    "_ldap._tcp.dc._msdcs.corp.example.com": [
+      { "priority": 0, "weight": 100, "port": 389, "target": "dc01.corp.example.com" }
+    ]
+  }
+}

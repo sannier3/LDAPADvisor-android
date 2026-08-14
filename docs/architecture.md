@@ -1,43 +1,65 @@
-# Architecture (draft)
+# Architecture
 
-This document describes **intended** architectural principles for LDAPADvisor Android.
-The final design will evolve as features are implemented. Do not treat this as a frozen
-specification.
+This document reflects the **current** single-module implementation (version `0.1.0`). It will evolve; it is not a frozen API contract.
 
 ## Current state
 
-The repository currently contains a lightweight single-module Android application
-generated with Jetpack Compose and Material 3. Domain packages for LDAP, discovery,
-and diagnostics are **not** introduced yet.
+LDAPADvisor Android is a native Kotlin app with:
+
+- Jetpack Compose + Material 3 UI
+- Manual DI via `AppContainer`
+- Room + DataStore persistence
+- UnboundID LDAP engine
+- MiniDNS AD discovery
+- DiagnosticEngine + AdvisorEngine + report export
+- Android Keystore–backed `SecretStore`
 
 ## Guiding principles
 
-- **Single-activity** Android application
-- **Jetpack Compose** UI
-- **MVVM** presentation pattern
-- **Repositories** as the boundary for data access
-- **Specialized services** for LDAP, DNS, TLS, and diagnostics (when introduced)
-- **Kotlin coroutines** for asynchronous work
-- **StateFlow** (or equivalent unidirectional state holders) for UI state
-- Clear separation between **UI**, **domain**, and **data** layers
-- Network and directory I/O **off the main thread**
-- **Secure storage** for future secrets (for example Android Keystore-backed storage)
-- **No LDAP/Active Directory data sent to third-party services**
+- **Single-activity** Compose application (`MainActivity`)
+- **MVVM** with `StateFlow` UI state
+- **Repositories** for profiles, settings, history
+- Specialized **services** for LDAP, DNS, TLS, diagnostics, reports
+- Kotlin **coroutines** / `Dispatchers.IO` for network and directory I/O
+- Clear separation: `feature` (UI) → `domain` → `data` / `core`
+- **No** LDAP/AD data sent to third-party analytics backends
 
-## Layering (planned)
+## Layering
 
 ```text
-UI (Compose) → ViewModels → Domain use cases → Repositories → Data sources / services
+UI (Compose screens / ViewModels)
+        ↓
+Domain models + AdvisorEngine
+        ↓
+Repositories / SessionManager
+        ↓
+LdapClientFactory, DnsResolver, DiagnosticEngine, ReportGenerator, SecretStore, Room, DataStore
 ```
 
-## Non-goals (for now)
+## Package map (high level)
 
-- Multi-module over-engineering before feature needs exist
-- Cloud backends or telemetry
-- Premature introduction of LDAP libraries without a concrete use case
+| Package | Role |
+|---|---|
+| `app` | `LdapAdvisorApp`, `AppContainer` |
+| `feature.*` | Screens + ViewModels (dashboard, profiles, directory, search, users/groups/computers, diagnostics, advisor, reports, settings, connection) |
+| `domain.model` / `domain.service` | Domain types, advisor rules |
+| `data.ldap` | UnboundID client, session, errors |
+| `data.dns` | MiniDNS resolver + AD discovery |
+| `data.tls` | Trust modes, SSL factories, TLS diagnostics |
+| `data.diagnostics` | DiagnosticEngine and probes |
+| `data.report` | Sanitizer + generators |
+| `data.database` / `data.datastore` / `data.repository` | Persistence |
+| `core.security` | SecretStore, SecureWindow |
+| `core.ad` | AD attribute helpers |
+| `core.logging` / `core.util` | Sanitized logging, escaping, fingerprints |
+| `ui.theme` / `ui.components` | Material theme and shared widgets |
+
+## Non-goals (still)
+
+- Multi-module over-engineering before need
+- Cloud backends / telemetry
+- Optional Kerberos client stacks beyond the embedded Kerby path already shipped
 
 ## Privacy and security posture
 
-Future implementations must assume credentials and directory content are sensitive.
-Logging, crash reports, and exports must be designed to avoid leaking secrets or
-production infrastructure details by default.
+Credentials and directory content are treated as sensitive. Logging and exports sanitize by default. Backup and device-transfer extraction are denied. See [security.md](security.md) and [PRIVACY.md](../PRIVACY.md).

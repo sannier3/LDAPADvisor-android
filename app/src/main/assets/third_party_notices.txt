@@ -1,0 +1,37 @@
+LDAPADvisor Android — third-party notices (excerpt)
+
+The LDAPADvisor application itself is licensed under the GNU General Public License v3.0.
+Full notices: THIRD_PARTY_NOTICES.md in the project repository.
+
+---
+
+UnboundID LDAP SDK for Java
+- Artifact: com.unboundid:unboundid-ldapsdk
+- License: Apache License 2.0 (recommended for modern releases)
+- Upstream: https://github.com/pingidentity/ldapsdk
+
+MiniDNS
+- Artifacts: org.minidns:minidns-hla, org.minidns:minidns-android21
+- License: Apache-2.0 / LGPL-2.1+ / WTFPL (dual/choice)
+- Upstream: https://github.com/MiniDNS/minidns
+
+AndroidX / Jetpack
+- Core KTX, Lifecycle, Activity, Compose UI, Material 3, Navigation, Room, DataStore
+- License: Apache License 2.0
+- Upstream: https://developer.android.com/jetpack
+
+Kotlin / kotlinx
+- Kotlin stdlib, kotlinx-coroutines, kotlinx-serialization-json
+- License: Apache License 2.0
+
+Android tools — desugar_jdk_libs
+- License: GPLv2 with Classpath Exception
+
+JUnit 4 (tests)
+- License: Eclipse Public License 1.0
+
+Google KSP
+- License: Apache License 2.0
+
+This excerpt is informational. Full license texts are available from upstream projects
+and dependency artifacts.
