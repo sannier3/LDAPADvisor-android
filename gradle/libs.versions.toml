@@ -65,4 +65,4 @@ slf4j-nop = { group = "org.slf4j", name = "slf4j-nop", version.ref = "slf4j" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-ksp = { id = "com.google.devtools.ksp", version = "2.2.10-2.0.2" }
+ksp = { id = "com.google.devtools.ksp", version = "2.3.11" }
