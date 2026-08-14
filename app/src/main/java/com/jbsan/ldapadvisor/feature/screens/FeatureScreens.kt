@@ -323,118 +323,149 @@ fun DiagnosticsScreen(
     val context = LocalContext.current
     var showExportWarn by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { viewModel.loadLatest() }
-    Column(
+    // Single LazyColumn so actions + results share one scroll surface.
+    // A Column of fixed chrome + nested LazyColumn(weight) often left 0 height for results on phones.
+    LazyColumn(
         ComposeModifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { viewModel.runFull() }, enabled = !ui.running) {
-                Text(stringResource(R.string.diagnostics_run))
-            }
-            if (ui.running) {
-                OutlinedButton(onClick = { viewModel.cancel() }) {
-                    Text(stringResource(R.string.action_stop))
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { viewModel.runFull() }, enabled = !ui.running) {
+                    Text(stringResource(R.string.diagnostics_run))
+                }
+                if (ui.running) {
+                    OutlinedButton(onClick = { viewModel.cancel() }) {
+                        Text(stringResource(R.string.action_stop))
+                    }
                 }
             }
         }
         if (ui.running) {
-            CircularProgressIndicator()
-            Text(stringResource(R.string.diagnostics_progress, ui.completed))
-            Text(stringResource(R.string.diagnostics_current, ui.currentTitle))
-        }
-        ui.run?.summary?.let { summary ->
-            summary.score?.let { Text(stringResource(R.string.diagnostics_score, it)) }
-            Text(
-                stringResource(
-                    R.string.diagnostics_summary_counts,
-                    summary.successCount,
-                    summary.warningCount,
-                    summary.errorCount,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        ui.tlsFingerprint?.let { fp ->
-            Text(stringResource(R.string.diagnostics_tls_fingerprint, fp), style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    cm.setPrimaryClip(ClipData.newPlainText("sha256", fp))
-                }) { Text(stringResource(R.string.action_copy_fingerprint)) }
-                OutlinedButton(onClick = { viewModel.applyPinToActiveProfile() }) {
-                    Text(stringResource(R.string.action_apply_pin))
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.diagnostics_progress, ui.completed))
+                    Text(stringResource(R.string.diagnostics_current, ui.currentTitle))
                 }
             }
         }
-        ui.message?.let {
-            Text(
-                if (it == "run_complete") stringResource(R.string.diagnostics_run_complete)
-                else it,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        ui.error?.let {
-            Text(
-                if (it == "no_profile") stringResource(R.string.diagnostics_no_profile)
-                else it,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onAdvisor) { Text(stringResource(R.string.nav_advisor)) }
-            OutlinedButton(onClick = onReports) { Text(stringResource(R.string.nav_reports)) }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onUserDiag) { Text(stringResource(R.string.nav_user_diagnostic)) }
-            OutlinedButton(onClick = onComputerDiag) { Text(stringResource(R.string.nav_computer_diagnostic)) }
-            OutlinedButton(onClick = { showExportWarn = true }) { Text(stringResource(R.string.action_export_logs)) }
-        }
-        if (showExportWarn) {
-            AlertDialog(
-                onDismissRequest = { showExportWarn = false },
-                title = { Text(stringResource(R.string.export_logs_title)) },
-                text = { Text(stringResource(R.string.export_logs_warning)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showExportWarn = false
-                        onExportLogs()
-                    }) { Text(stringResource(R.string.action_share)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showExportWarn = false }) {
-                        Text(stringResource(R.string.action_cancel))
-                    }
-                },
-            )
-        }
-        Text(
-            stringResource(R.string.diagnostics_results_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        if (ui.results.isEmpty() && !ui.running) {
-            Text(
-                stringResource(R.string.diagnostics_results_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            LazyColumn(ComposeModifier.weight(1f).fillMaxWidth()) {
-                items(ui.results, key = { it.id + it.startedAt }) { r ->
-                    ListItem(
-                        headlineContent = { Text(r.title) },
-                        supportingContent = {
-                            Column {
-                                Text(r.summary)
-                                r.probableCause?.takeIf { it.isNotBlank() }?.let {
-                                    Text(it, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        },
-                        leadingContent = { StatusChip(r.status) },
+        ui.run?.summary?.let { summary ->
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    summary.score?.let { Text(stringResource(R.string.diagnostics_score, it)) }
+                    Text(
+                        stringResource(
+                            R.string.diagnostics_summary_counts,
+                            summary.successCount,
+                            summary.warningCount,
+                            summary.errorCount,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
         }
+        ui.tlsFingerprint?.let { fp ->
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.diagnostics_tls_fingerprint, fp),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            cm.setPrimaryClip(ClipData.newPlainText("sha256", fp))
+                        }) { Text(stringResource(R.string.action_copy_fingerprint)) }
+                        OutlinedButton(onClick = { viewModel.applyPinToActiveProfile() }) {
+                            Text(stringResource(R.string.action_apply_pin))
+                        }
+                    }
+                }
+            }
+        }
+        ui.message?.let { msg ->
+            item {
+                Text(
+                    if (msg == "run_complete") stringResource(R.string.diagnostics_run_complete)
+                    else msg,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        ui.error?.let { err ->
+            item {
+                Text(
+                    if (err == "no_profile") stringResource(R.string.diagnostics_no_profile)
+                    else err,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onAdvisor) { Text(stringResource(R.string.nav_advisor)) }
+                OutlinedButton(onClick = onReports) { Text(stringResource(R.string.nav_reports)) }
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onUserDiag) { Text(stringResource(R.string.nav_user_diagnostic)) }
+                OutlinedButton(onClick = onComputerDiag) { Text(stringResource(R.string.nav_computer_diagnostic)) }
+                OutlinedButton(onClick = { showExportWarn = true }) {
+                    Text(stringResource(R.string.action_export_logs))
+                }
+            }
+        }
+        item {
+            Text(
+                stringResource(R.string.diagnostics_results_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        if (ui.results.isEmpty() && !ui.running) {
+            item {
+                Text(
+                    stringResource(R.string.diagnostics_results_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(ui.results, key = { it.id + it.startedAt }) { r ->
+                ListItem(
+                    headlineContent = { Text(r.title) },
+                    supportingContent = {
+                        Column {
+                            Text(r.summary)
+                            r.probableCause?.takeIf { it.isNotBlank() }?.let {
+                                Text(it, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    },
+                    leadingContent = { StatusChip(r.status) },
+                )
+            }
+        }
+    }
+    if (showExportWarn) {
+        AlertDialog(
+            onDismissRequest = { showExportWarn = false },
+            title = { Text(stringResource(R.string.export_logs_title)) },
+            text = { Text(stringResource(R.string.export_logs_warning)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showExportWarn = false
+                    onExportLogs()
+                }) { Text(stringResource(R.string.action_share)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExportWarn = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 }
 
@@ -463,21 +494,94 @@ fun ReportsScreen(viewModel: ReportsViewModel) {
     var sanitized by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(ui.sanitizeDefault) { sanitized = ui.sanitizeDefault }
-    Column(
+    val run = ui.run
+    if (run == null) {
+        EmptyState(
+            stringResource(R.string.reports_title),
+            stringResource(R.string.reports_no_run),
+            ComposeModifier.fillMaxSize(),
+        )
+        return
+    }
+    LazyColumn(
         ComposeModifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (ui.run == null) {
-            Text(stringResource(R.string.reports_no_run))
-            return
+        item {
+            Text(stringResource(R.string.reports_title), style = MaterialTheme.typography.headlineSmall)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.reports_sanitized))
-            Switch(checked = sanitized, onCheckedChange = { sanitized = it })
+        item {
+            run.summary.score?.let { Text(stringResource(R.string.diagnostics_score, it)) }
+            Text(
+                stringResource(
+                    R.string.diagnostics_summary_counts,
+                    run.summary.successCount,
+                    run.summary.warningCount,
+                    run.summary.errorCount,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
-        Button(onClick = { viewModel.share(context, "html", sanitized) }) { Text(stringResource(R.string.reports_format_html)) }
-        Button(onClick = { viewModel.share(context, "json", sanitized) }) { Text(stringResource(R.string.reports_format_json)) }
-        Button(onClick = { viewModel.share(context, "txt", sanitized) }) { Text(stringResource(R.string.reports_format_txt)) }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.reports_sanitized))
+                Switch(checked = sanitized, onCheckedChange = { sanitized = it })
+            }
+        }
+        item {
+            Button(
+                onClick = { viewModel.share(context, "html", sanitized) },
+                modifier = ComposeModifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.reports_format_html)) }
+        }
+        item {
+            Button(
+                onClick = { viewModel.share(context, "json", sanitized) },
+                modifier = ComposeModifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.reports_format_json)) }
+        }
+        item {
+            Button(
+                onClick = { viewModel.share(context, "txt", sanitized) },
+                modifier = ComposeModifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.reports_format_txt)) }
+        }
+        ui.message?.let { msg ->
+            item {
+                Text(
+                    if (msg == "generated") stringResource(R.string.reports_generated) else msg,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        ui.error?.let { err ->
+            item {
+                Text(
+                    if (err == "no_run") stringResource(R.string.reports_no_run) else err,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        item {
+            Text(
+                stringResource(R.string.diagnostics_results_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+        }
+        items(run.tests, key = { it.id + it.startedAt }) { r ->
+            ListItem(
+                headlineContent = { Text(r.title) },
+                supportingContent = {
+                    Column {
+                        Text(r.summary)
+                        r.probableCause?.takeIf { it.isNotBlank() }?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+                leadingContent = { StatusChip(r.status) },
+            )
+        }
     }
 }
 
@@ -543,6 +647,19 @@ fun SettingsScreen(
             SettingsSwitchRow(stringResource(R.string.settings_read_only_default), settings.readOnlyByDefault, viewModel::setReadOnlyDefault)
             SettingsSwitchRow(stringResource(R.string.settings_report_sanitize), settings.reportSanitizationDefault, viewModel::setSanitize)
             SettingsSwitchRow(stringResource(R.string.settings_save_search_history), settings.saveSearchHistory, viewModel::setSaveSearchHistory)
+        }
+
+        SettingsSection(stringResource(R.string.settings_section_developer)) {
+            SettingsSwitchRow(
+                stringResource(R.string.settings_debug_logging),
+                settings.debugLoggingEnabled,
+                viewModel::setDebugLogging,
+            )
+            Text(
+                stringResource(R.string.settings_debug_logging_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         SettingsSection(stringResource(R.string.settings_section_timeouts)) {

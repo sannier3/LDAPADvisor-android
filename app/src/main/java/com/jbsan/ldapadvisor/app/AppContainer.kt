@@ -14,6 +14,7 @@ import com.jbsan.ldapadvisor.data.diagnostics.LdapDiagnosticService
 import com.jbsan.ldapadvisor.data.diagnostics.TcpDiagnosticService
 import com.jbsan.ldapadvisor.data.dns.AdDiscoveryService
 import com.jbsan.ldapadvisor.data.dns.DnsResolver
+import com.jbsan.ldapadvisor.data.kerberos.KerberosTicketService
 import com.jbsan.ldapadvisor.data.ldap.LdapClientFactory
 import com.jbsan.ldapadvisor.data.ldap.SessionManager
 import com.jbsan.ldapadvisor.data.report.ReportGenerator
@@ -47,14 +48,15 @@ class AppContainer(context: Context) {
         customCaDao = database.customCaDao(),
         logger = logger,
     )
+    val dnsResolver = DnsResolver()
     val sessionManager = SessionManager(
         clientFactory = ldapClientFactory,
         profileRepository = profileRepository,
         secretStore = secretStore,
         logger = logger,
+        kerberosTicketService = KerberosTicketService(logger, dnsResolver),
     )
 
-    val dnsResolver = DnsResolver()
     val adDiscoveryService = AdDiscoveryService(dnsResolver)
     val tlsDiagnosticService = TlsDiagnosticService(sslSocketFactoryFactory)
     val tcpDiagnosticService = TcpDiagnosticService()

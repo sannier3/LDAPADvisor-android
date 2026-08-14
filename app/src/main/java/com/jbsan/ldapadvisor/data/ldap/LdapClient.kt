@@ -21,8 +21,10 @@ import com.unboundid.ldap.sdk.Modification
 import com.unboundid.ldap.sdk.ModificationType
 import com.unboundid.ldap.sdk.ModifyDNRequest
 import com.unboundid.ldap.sdk.ModifyRequest
+import com.jbsan.ldapadvisor.data.kerberos.KerberosMutualAuthState
 import com.unboundid.ldap.sdk.ResultCode
 import com.unboundid.ldap.sdk.RootDSE
+import com.unboundid.ldap.sdk.SASLBindInProgressException
 import com.unboundid.ldap.sdk.SearchRequest
 import com.unboundid.ldap.sdk.SearchResult
 import com.unboundid.ldap.sdk.SearchScope
@@ -116,11 +118,13 @@ class LdapClient(
     /**
      * Kerberos SASL bind using pre-built GSS-SPNEGO / GSSAPI InitialContextTokens.
      * Prefers GSS-SPNEGO (Active Directory), falls back to GSSAPI.
+     * Handles mutual-auth SASL continuation (AP-REP verify + empty second bind).
      */
     suspend fun bindKerberos(
         principalLabel: String,
         spnegoToken: ByteArray,
         gssapiToken: ByteArray,
+        mutualAuth: KerberosMutualAuthState? = null,
         allowInsecureTrustConfirmation: Boolean = false,
     ): BindOutcome = withContext(Dispatchers.IO) {
         try {
@@ -130,12 +134,14 @@ class LdapClient(
                 )
             }
             val attempts = listOf(
-                "GSS-SPNEGO" to spnegoToken,
+                // GSSAPI is the path that reaches mutual AP-REP on AD; try it first.
                 "GSSAPI" to gssapiToken,
+                "GSS-SPNEGO" to spnegoToken,
             )
             var lastError: AppError? = null
             for ((mech, token) in attempts) {
                 try {
+                    logger?.debug("LdapClient", "SASL bind attempt mech=$mech tokenBytes=${token.size}")
                     val result = connection.bind(
                         GenericSASLBindRequest(
                             "",
@@ -145,29 +151,44 @@ class LdapClient(
                     )
                     if (result.resultCode == ResultCode.SUCCESS) {
                         boundAs = principalLabel
+                        logger?.debug("LdapClient", "SASL bind success mech=$mech as=$principalLabel")
                         return@withContext BindOutcome.Success(principalLabel)
-                    }
-                    if (result.resultCode == ResultCode.SASL_BIND_IN_PROGRESS) {
-                        // Mutual auth continuation is not fully implemented yet; report clearly.
-                        lastError = AppError.KerberosFailure(
-                            message = "Kerberos SASL mutual authentication continuation is not supported yet ($mech)",
-                            technicalDetails = result.diagnosticMessage,
-                        )
-                        continue
                     }
                     lastError = AppError.KerberosFailure(
                         message = result.diagnosticMessage
                             ?: "Kerberos SASL bind failed ($mech): ${result.resultCode}",
                         technicalDetails = result.toString(),
                     )
+                    logger?.debug(
+                        "LdapClient",
+                        "SASL bind rejected mech=$mech code=${result.resultCode} diag=${result.diagnosticMessage}",
+                    )
+                } catch (e: SASLBindInProgressException) {
+                    val outcome = completeKerberosSaslContinuation(
+                        mech = mech,
+                        principalLabel = principalLabel,
+                        firstException = e,
+                        mutualAuth = mutualAuth,
+                    )
+                    when (outcome) {
+                        is BindOutcome.Success -> return@withContext outcome
+                        is BindOutcome.Failure -> {
+                            // Connection is mid-SASL; do not try another mech on the same socket.
+                            return@withContext outcome
+                        }
+                        else -> return@withContext BindOutcome.Failure(
+                            AppError.KerberosFailure("Kerberos SASL continuation failed ($mech)"),
+                        )
+                    }
                 } catch (e: Exception) {
                     lastError = when (val mapped = LdapErrorMapper.map(e)) {
                         is AppError.LdapInvalidCredentials -> AppError.KerberosFailure(
-                            message = "Kerberos SASL bind rejected ($mech)",
+                            message = mapSaslRejectMessage(mech, mapped),
                             technicalDetails = mapped.technicalDetails ?: mapped.message,
                         )
                         else -> mapped
                     }
+                    logger?.debug("LdapClient", "SASL bind exception mech=$mech: ${e.message}")
                 }
             }
             BindOutcome.Failure(
@@ -176,7 +197,154 @@ class LdapClient(
         } finally {
             spnegoToken.fill(0)
             gssapiToken.fill(0)
+            mutualAuth?.clear()
         }
+    }
+
+    /**
+     * RFC 4752 continuation after initial AP-REQ:
+     * 1) verify AP-REP
+     * 2) empty bind → server wrap offer (4 bytes)
+     * 3) wrap "no security layer" response → final SUCCESS
+     */
+    private fun completeKerberosSaslContinuation(
+        mech: String,
+        principalLabel: String,
+        firstException: SASLBindInProgressException,
+        mutualAuth: KerberosMutualAuthState?,
+    ): BindOutcome {
+        val serverCreds = firstException.serverSASLCredentials?.value
+        logger?.debug(
+            "LdapClient",
+            "SASL_BIND_IN_PROGRESS mech=$mech serverTokenBytes=${serverCreds?.size ?: 0}",
+        )
+        if (mutualAuth == null) {
+            return BindOutcome.Failure(
+                AppError.KerberosFailure(
+                    message = "Kerberos SASL mutual authentication continuation required ($mech)",
+                    technicalDetails = firstException.diagnosticMessage,
+                ),
+            )
+        }
+        if (serverCreds == null || serverCreds.isEmpty()) {
+            return BindOutcome.Failure(
+                AppError.KerberosFailure(
+                    message = "Kerberos SASL mutual auth: empty server credentials ($mech)",
+                    technicalDetails = firstException.diagnosticMessage,
+                ),
+            )
+        }
+        try {
+            mutualAuth.verifyServerSaslCredentials(serverCreds)
+            logger?.debug("LdapClient", "AP-REP verified mech=$mech — empty second SASL bind")
+        } catch (verifyEx: Exception) {
+            logger?.debug("LdapClient", "AP-REP verify failed mech=$mech: ${verifyEx.message}")
+            return BindOutcome.Failure(
+                AppError.KerberosFailure(
+                    message = "Kerberos mutual auth AP-REP verification failed ($mech)",
+                    technicalDetails = verifyEx.message ?: verifyEx.toString(),
+                ),
+            )
+        }
+
+        val secondCreds: ByteArray? = try {
+            val second = connection.bind(
+                GenericSASLBindRequest("", mech, ASN1OctetString(ByteArray(0))),
+            )
+            if (second.resultCode == ResultCode.SUCCESS) {
+                boundAs = principalLabel
+                logger?.debug("LdapClient", "SASL bind success after empty second bind mech=$mech")
+                return BindOutcome.Success(principalLabel)
+            }
+            null
+        } catch (e2: SASLBindInProgressException) {
+            e2.serverSASLCredentials?.value
+        } catch (e2: Exception) {
+            return BindOutcome.Failure(
+                AppError.KerberosFailure(
+                    message = "Kerberos SASL second bind failed ($mech)",
+                    technicalDetails = e2.message ?: e2.toString(),
+                ),
+            )
+        }
+
+        if (secondCreds == null || secondCreds.isEmpty()) {
+            return BindOutcome.Failure(
+                AppError.KerberosFailure(
+                    message = "Kerberos SASL security-layer offer missing after mutual auth ($mech)",
+                ),
+            )
+        }
+        logger?.debug(
+            "LdapClient",
+            "SASL security-layer offer mech=$mech wrapBytes=${secondCreds.size} " +
+                "keys=${mutualAuth.wrapKeyTypeLabel()}",
+        )
+
+        val wrapResponse = try {
+            mutualAuth.buildSaslNoSecurityLayerResponse(secondCreds)
+        } catch (wrapEx: Exception) {
+            logger?.debug("LdapClient", "SASL wrap response failed mech=$mech: ${wrapEx.message}")
+            return BindOutcome.Failure(
+                AppError.KerberosFailure(
+                    message = "Kerberos SASL security-layer negotiation failed ($mech)",
+                    technicalDetails = wrapEx.message ?: wrapEx.toString(),
+                ),
+            )
+        }
+        logger?.debug(
+            "LdapClient",
+            "SASL wrap response ready mech=$mech tokenBytes=${wrapResponse.size}",
+        )
+
+        return try {
+            val finalResult = connection.bind(
+                GenericSASLBindRequest("", mech, ASN1OctetString(wrapResponse)),
+            )
+            if (finalResult.resultCode == ResultCode.SUCCESS) {
+                boundAs = principalLabel
+                logger?.debug(
+                    "LdapClient",
+                    "SASL bind success after security-layer nego mech=$mech as=$principalLabel",
+                )
+                BindOutcome.Success(principalLabel)
+            } else {
+                BindOutcome.Failure(
+                    AppError.KerberosFailure(
+                        message = finalResult.diagnosticMessage
+                            ?: "Kerberos SASL final bind failed ($mech): ${finalResult.resultCode}",
+                        technicalDetails = finalResult.toString(),
+                    ),
+                )
+            }
+        } catch (e3: Exception) {
+            val mapped = LdapErrorMapper.map(e3)
+            BindOutcome.Failure(
+                when (mapped) {
+                    is AppError.LdapInvalidCredentials -> AppError.KerberosFailure(
+                        message = mapSaslRejectMessage(mech, mapped),
+                        technicalDetails = mapped.technicalDetails ?: mapped.message,
+                    )
+                    else -> AppError.KerberosFailure(
+                        message = "Kerberos SASL final bind failed ($mech)",
+                        technicalDetails = e3.message ?: mapped.toString(),
+                    )
+                },
+            )
+        }
+    }
+
+    private fun mapSaslRejectMessage(mech: String, mapped: AppError.LdapInvalidCredentials): String {
+        val details = (mapped.technicalDetails ?: mapped.message).orEmpty()
+        val data = Regex("""data\s+([0-9a-fA-F]+)""", RegexOption.IGNORE_CASE)
+            .find(details)?.groupValues?.getOrNull(1)?.lowercase()
+        val hint = when (data) {
+            "57" -> " (data 57: often wrong APOptions/SPN for this DC — prefer ldap/<fqdn> matching the LDAP host)"
+            "52e" -> " (data 52e: logon failure / ticket not accepted by this DC)"
+            "80090346", "775" -> " (channel binding / LDAP signing policy may block this client)"
+            else -> if (data != null) " (data $data)" else ""
+        }
+        return "Kerberos SASL bind rejected ($mech)$hint"
     }
 
     suspend fun readRootDse(): Result<RootDseInfo> = withContext(Dispatchers.IO) {

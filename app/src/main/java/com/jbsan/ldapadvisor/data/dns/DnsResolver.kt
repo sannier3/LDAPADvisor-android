@@ -3,8 +3,6 @@ package com.jbsan.ldapadvisor.data.dns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.minidns.hla.ResolverApi
-import org.minidns.record.A
-import org.minidns.record.AAAA
 import org.minidns.record.PTR
 import org.minidns.record.SRV
 import java.net.Inet4Address
@@ -26,21 +24,19 @@ data class DnsLookupResult(
 )
 
 /**
- * DNS resolver using MiniDNS with the device/system resolver path.
- * Does not hardcode Google/Cloudflare resolvers.
+ * DNS resolver preferring the Android/system resolver (VPN / private DNS / WireGuard)
+ * for A/AAAA. SRV still uses MiniDNS (system APIs do not expose SRV on all API levels).
  */
 class DnsResolver {
     private val api: ResolverApi = ResolverApi.INSTANCE
 
     suspend fun resolveA(name: String): Result<List<String>> = withContext(Dispatchers.IO) {
         try {
-            val result = api.resolve(name, A::class.java)
-            if (!result.wasSuccessful()) {
-                return@withContext Result.failure(
-                    IllegalStateException(result.responseCode?.name ?: "A lookup failed for $name"),
-                )
-            }
-            Result.success(result.answersOrEmptySet.map { it.inetAddress.hostAddress!! })
+            Result.success(
+                InetAddress.getAllByName(name)
+                    .filterIsInstance<Inet4Address>()
+                    .mapNotNull { it.hostAddress },
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -48,13 +44,11 @@ class DnsResolver {
 
     suspend fun resolveAAAA(name: String): Result<List<String>> = withContext(Dispatchers.IO) {
         try {
-            val result = api.resolve(name, AAAA::class.java)
-            if (!result.wasSuccessful()) {
-                return@withContext Result.failure(
-                    IllegalStateException(result.responseCode?.name ?: "AAAA lookup failed for $name"),
-                )
-            }
-            Result.success(result.answersOrEmptySet.map { it.inetAddress.hostAddress!! })
+            Result.success(
+                InetAddress.getAllByName(name)
+                    .filterIsInstance<Inet6Address>()
+                    .mapNotNull { it.hostAddress },
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -84,6 +78,11 @@ class DnsResolver {
 
     suspend fun resolvePtr(ip: String): Result<List<String>> = withContext(Dispatchers.IO) {
         try {
+            // Prefer system reverse lookup (honours VPN DNS).
+            val system = InetAddress.getByName(ip).canonicalHostName?.trim()?.trimEnd('.')
+            if (!system.isNullOrBlank() && !system.equals(ip, ignoreCase = true) && !looksLikeIp(system)) {
+                return@withContext Result.success(listOf(system))
+            }
             val arpa = toArpaName(ip)
             val result = api.resolve(arpa, PTR::class.java)
             if (!result.wasSuccessful()) {
@@ -147,6 +146,15 @@ class DnsResolver {
                 nibbles.reversed().toCharArray().joinToString(".") + ".ip6.arpa"
             }
             else -> error("Unsupported address type")
+        }
+    }
+
+    private fun looksLikeIp(value: String): Boolean {
+        return try {
+            val a = InetAddress.getByName(value)
+            a.hostAddress.equals(value, ignoreCase = true) || value.contains(':')
+        } catch (_: Exception) {
+            false
         }
     }
 }

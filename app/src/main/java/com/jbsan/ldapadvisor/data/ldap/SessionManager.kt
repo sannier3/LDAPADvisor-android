@@ -10,6 +10,7 @@ import com.jbsan.ldapadvisor.domain.model.ConnectionProfile
 import com.jbsan.ldapadvisor.domain.model.ConnectionStatus
 import com.jbsan.ldapadvisor.domain.model.DirectoryCapabilities
 import com.jbsan.ldapadvisor.domain.model.TrustMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +23,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -42,6 +44,10 @@ class SessionManager(
     private val mutex = Mutex()
     private var session: LdapSession? = null
     private var keepAliveJob: Job? = null
+    /** Detached from [keepAliveJob] so [connectLocked] cancel does not abort reconnect. */
+    private var reconnectJob: Job? = null
+    /** Last successful Connected snapshot for restoring networkLost after aborted reconnect. */
+    private var lastConnected: ConnectionStatus.Connected? = null
 
     /** Profile id for the intentional session (survives socket close / networkLost). */
     private var activeProfileId: String? = null
@@ -81,9 +87,9 @@ class SessionManager(
                 val current = _status.value
                 if (current is ConnectionStatus.Connected && current.networkLost) {
                     logger?.info(TAG, "Network restored — attempting silent reconnect")
-                    silentReconnect("network-restored")
+                    enqueueSilentReconnect("network-restored")
                 } else if (current is ConnectionStatus.Connected && session == null) {
-                    silentReconnect("network-restored-no-socket")
+                    enqueueSilentReconnect("network-restored-no-socket")
                 }
             }
         }
@@ -95,15 +101,17 @@ class SessionManager(
         anonymous: Boolean = false,
         allowPlaintextSimpleBind: Boolean = false,
         allowInsecureTrust: Boolean = false,
-    ): Result<LdapSession> = mutex.withLock {
-        connectLocked(
-            profile = profile,
-            password = password,
-            anonymous = anonymous,
-            allowPlaintextSimpleBind = allowPlaintextSimpleBind,
-            allowInsecureTrust = allowInsecureTrust,
-            preserveCredentialsOnFailure = false,
-        )
+    ): Result<LdapSession> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            connectLocked(
+                profile = profile,
+                password = password,
+                anonymous = anonymous,
+                allowPlaintextSimpleBind = allowPlaintextSimpleBind,
+                allowInsecureTrust = allowInsecureTrust,
+                preserveCredentialsOnFailure = false,
+            )
+        }
     }
 
     private suspend fun connectLocked(
@@ -114,6 +122,11 @@ class SessionManager(
         allowInsecureTrust: Boolean = false,
         preserveCredentialsOnFailure: Boolean = false,
     ): Result<LdapSession> {
+        // User-driven connect replaces any in-flight silent reconnect.
+        if (!preserveCredentialsOnFailure) {
+            reconnectJob?.cancel()
+            reconnectJob = null
+        }
         stopKeepAliveLocked()
         session?.close()
         session = null
@@ -124,6 +137,18 @@ class SessionManager(
 
         _status.value = ConnectionStatus.Connecting
         val started = System.currentTimeMillis()
+        logger?.debug(
+            TAG,
+            "Connect start host=${profile.host}:${profile.port} security=${profile.securityMode} " +
+                "auth=${profile.authMethod} trust=${profile.trustMode} domain=${profile.domain} " +
+                "bindIdentity=${profile.bindIdentity} " +
+                "kdc=${profile.kerberosKdcHost.ifBlank { profile.host }}:" +
+                "${profile.kerberosKdcPort.takeIf { it in 1..65535 } ?: 88} " +
+                "realm=${profile.kerberosRealm.ifBlank { profile.domain }} " +
+                "spn=${profile.kerberosServicePrincipal.ifBlank { "ldap/${profile.host}" }} " +
+                "anonymous=$anonymous allowPlaintext=$allowPlaintextSimpleBind " +
+                "allowInsecureTrust=$allowInsecureTrust",
+        )
 
         // Retain password copy for keep-alive / network recovery (not written to disk unless rememberPassword).
         val passwordForSession = when {
@@ -131,6 +156,11 @@ class SessionManager(
             password != null && password.isNotEmpty() -> password.copyOf()
             else -> secretStore.getPassword(profile.id)?.copyOf()
         }
+        logger?.debug(
+            TAG,
+            "Credentials ready hasPassword=${passwordForSession != null && passwordForSession.isNotEmpty()} " +
+                "fromSecretStore=${password == null || password.isEmpty()}",
+        )
 
         val hasCredentials = !anonymous &&
             passwordForSession != null &&
@@ -139,15 +169,23 @@ class SessionManager(
             passwordForSession?.fill('\u0000')
             val err = AppError.InsecureTrustRequiresConfirmation()
             _status.value = ConnectionStatus.Error(err)
+            logger?.debug(TAG, "Blocked: insecure trust requires confirmation")
             return Result.failure(err)
         }
 
+        logger?.debug(TAG, "Opening LDAP transport…")
         val opened = clientFactory.open(profile).getOrElse { err ->
             passwordForSession?.fill('\u0000')
             val mapped = err as? AppError ?: LdapErrorMapper.map(err)
+            logger?.error(
+                TAG,
+                "Transport open failed: ${mapped.message} details=${mapped.technicalDetails}",
+                err as? Throwable,
+            )
             _status.value = ConnectionStatus.Error(mapped)
             return Result.failure(mapped)
         }
+        logger?.debug(TAG, "Transport open OK tlsActive=${opened.tlsActive}")
 
         val client = opened.client
         val bindOutcome = when {
@@ -155,7 +193,10 @@ class SessionManager(
                 profile.authMethod == AuthMethod.SIMPLE &&
                     profile.bindIdentity.isBlank() &&
                     (passwordForSession == null || passwordForSession.isEmpty())
-                ) -> client.bindAnonymous()
+                ) -> {
+                logger?.debug(TAG, "Bind anonymous")
+                client.bindAnonymous()
+            }
             profile.authMethod == AuthMethod.KERBEROS -> {
                 if (passwordForSession == null || passwordForSession.isEmpty()) {
                     client.disconnect()
@@ -163,20 +204,32 @@ class SessionManager(
                     _status.value = ConnectionStatus.Error(err)
                     return Result.failure(err)
                 }
+                logger?.debug(TAG, "Kerberos: acquiring tickets then SASL bind")
                 val bindPwd = passwordForSession.copyOf()
                 val tokens = kerberosTicketService.acquireLdapBindTokens(profile, bindPwd).getOrElse { err ->
                     bindPwd.fill('\u0000')
                     passwordForSession.fill('\u0000')
                     client.disconnect()
                     val mapped = err as? AppError ?: AppError.KerberosFailure(err.message ?: "Kerberos failed")
+                    logger?.error(
+                        TAG,
+                        "Kerberos ticket step failed: ${mapped.message} " +
+                            "details=${mapped.technicalDetails}",
+                        err as? Throwable,
+                    )
                     _status.value = ConnectionStatus.Error(mapped)
                     return Result.failure(mapped)
                 }
                 bindPwd.fill('\u0000')
+                logger?.debug(
+                    TAG,
+                    "Kerberos tickets OK principal=${tokens.principal} spn=${tokens.servicePrincipal}",
+                )
                 client.bindKerberos(
                     principalLabel = tokens.principal,
                     spnegoToken = tokens.spnegoToken,
                     gssapiToken = tokens.gssapiToken,
+                    mutualAuth = tokens.mutualAuth,
                     allowInsecureTrustConfirmation = allowInsecureTrust,
                 )
             }
@@ -187,6 +240,7 @@ class SessionManager(
                     _status.value = ConnectionStatus.Error(err)
                     return Result.failure(err)
                 } else {
+                    logger?.debug(TAG, "Simple bind identity=${profile.bindIdentity}")
                     val bindPwd = passwordForSession.copyOf()
                     client.bindSimple(
                         bindDn = profile.bindIdentity,
@@ -203,6 +257,7 @@ class SessionManager(
                 client.disconnect()
                 passwordForSession?.fill('\u0000')
                 val err = AppError.PlaintextBindRequiresConfirmation(bindOutcome.message)
+                logger?.debug(TAG, "Bind needs plaintext confirmation")
                 _status.value = ConnectionStatus.Error(err)
                 return Result.failure(err)
             }
@@ -210,12 +265,18 @@ class SessionManager(
                 client.disconnect()
                 passwordForSession?.fill('\u0000')
                 val err = AppError.InsecureTrustRequiresConfirmation(bindOutcome.message)
+                logger?.debug(TAG, "Bind needs insecure-trust confirmation")
                 _status.value = ConnectionStatus.Error(err)
                 return Result.failure(err)
             }
             is BindOutcome.Failure -> {
                 client.disconnect()
                 passwordForSession?.fill('\u0000')
+                logger?.error(
+                    TAG,
+                    "Bind failed: ${bindOutcome.error.message} " +
+                        "details=${bindOutcome.error.technicalDetails}",
+                )
                 _status.value = ConnectionStatus.Error(bindOutcome.error)
                 return Result.failure(bindOutcome.error)
             }
@@ -243,7 +304,7 @@ class SessionManager(
         sessionPassword = passwordForSession
 
         val elapsed = System.currentTimeMillis() - started
-        _status.value = ConnectionStatus.Connected(
+        val connected = ConnectionStatus.Connected(
             profileId = profile.id,
             host = profile.host,
             port = profile.port,
@@ -254,6 +315,9 @@ class SessionManager(
             networkLost = false,
             insecureTrust = profile.trustMode == TrustMode.INSECURE_NO_VERIFY,
         )
+        lastConnected = connected
+        _status.value = connected
+        logger?.info(TAG, "Connected boundAs=$boundAs tls=${opened.tlsActive} durationMs=$elapsed")
         profileRepository.markLastSuccessfulConnection(profile.id)
         startKeepAliveLocked()
         return Result.success(newSession)
@@ -271,6 +335,8 @@ class SessionManager(
 
     private fun disconnectLocked(clearCredentials: Boolean) {
         stopKeepAliveLocked()
+        reconnectJob?.cancel()
+        reconnectJob = null
         session?.close()
         session = null
         if (clearCredentials) {
@@ -279,6 +345,7 @@ class SessionManager(
             sessionAllowPlaintext = false
             sessionAllowInsecureTrust = false
             clearSessionPasswordLocked()
+            lastConnected = null
         }
         _status.value = ConnectionStatus.Disconnected
     }
@@ -292,40 +359,39 @@ class SessionManager(
         return silentReconnect("manual-reconnect")
     }
 
-    private suspend fun silentReconnect(reason: String): Result<LdapSession> = mutex.withLock {
-        val profileId = activeProfileId
-            ?: ( _status.value as? ConnectionStatus.Connected)?.profileId
-            ?: return@withLock Result.failure(AppError.NotConnected())
-        val profile = profileRepository.getById(profileId)
-            ?: return@withLock Result.failure(AppError.Validation("Active profile no longer exists"))
+    private suspend fun silentReconnect(reason: String): Result<LdapSession> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val profileId = activeProfileId
+                ?: (_status.value as? ConnectionStatus.Connected)?.profileId
+                ?: return@withLock Result.failure(AppError.NotConnected())
+            val profile = profileRepository.getById(profileId)
+                ?: return@withLock Result.failure(AppError.Validation("Active profile no longer exists"))
 
-        if (!_networkAvailable.value) {
-            val current = _status.value
-            if (current is ConnectionStatus.Connected) {
-                _status.value = current.copy(networkLost = true)
+            if (!_networkAvailable.value) {
+                markNetworkLostLocked()
+                return@withLock Result.failure(AppError.Generic("Network unavailable"))
             }
-            return@withLock Result.failure(AppError.Generic("Network unavailable"))
-        }
 
-        logger?.info(TAG, "Silent reconnect ($reason) for profile $profileId")
-        val pwd = sessionPassword?.copyOf()
-            ?: if (profile.rememberPassword) secretStore.getPassword(profile.id)?.copyOf() else null
-        val anonymous = sessionAnonymous || (
-            profile.authMethod == AuthMethod.SIMPLE &&
-                profile.bindIdentity.isBlank() &&
-                (pwd == null || pwd.isEmpty())
-            )
-        try {
-            connectLocked(
-                profile = profile,
-                password = pwd,
-                anonymous = anonymous,
-                allowPlaintextSimpleBind = sessionAllowPlaintext,
-                allowInsecureTrust = sessionAllowInsecureTrust,
-                preserveCredentialsOnFailure = true,
-            )
-        } finally {
-            pwd?.fill('\u0000')
+            logger?.info(TAG, "Silent reconnect ($reason) for profile $profileId")
+            val pwd = sessionPassword?.copyOf()
+                ?: if (profile.rememberPassword) secretStore.getPassword(profile.id)?.copyOf() else null
+            val anonymous = sessionAnonymous || (
+                profile.authMethod == AuthMethod.SIMPLE &&
+                    profile.bindIdentity.isBlank() &&
+                    (pwd == null || pwd.isEmpty())
+                )
+            try {
+                connectLocked(
+                    profile = profile,
+                    password = pwd,
+                    anonymous = anonymous,
+                    allowPlaintextSimpleBind = sessionAllowPlaintext,
+                    allowInsecureTrust = sessionAllowInsecureTrust,
+                    preserveCredentialsOnFailure = true,
+                )
+            } finally {
+                pwd?.fill('\u0000')
+            }
         }
     }
 
@@ -349,20 +415,68 @@ class SessionManager(
         val status = _status.value
         if (status !is ConnectionStatus.Connected) return
         if (status.networkLost) {
-            silentReconnect("keep-alive-while-network-lost-cleared")
+            // Must not call silentReconnect on this job: connectLocked cancels keepAliveJob.
+            enqueueSilentReconnect("keep-alive-while-network-lost-cleared")
             return
         }
 
         val client = session?.client
         if (client == null) {
-            silentReconnect("keep-alive-missing-session")
+            enqueueSilentReconnect("keep-alive-missing-session")
             return
         }
 
         val alive = client.isConnected() && client.ping().isSuccess
         if (!alive) {
             logger?.info(TAG, "LDAP keep-alive failed — rebinding")
-            silentReconnect("keep-alive-failed")
+            enqueueSilentReconnect("keep-alive-failed")
+        }
+    }
+
+    /**
+     * Run silent reconnect on a detached job.
+     *
+     * [connectLocked] cancels [keepAliveJob]; if reconnect ran on that same job, cancellation
+     * aborted mid-connect and left [ConnectionStatus.Connecting] stuck on the dashboard.
+     */
+    private fun enqueueSilentReconnect(reason: String) {
+        if (reconnectJob?.isActive == true) {
+            logger?.debug(TAG, "Silent reconnect already in progress — skip ($reason)")
+            return
+        }
+        reconnectJob = scope.launch {
+            try {
+                silentReconnect(reason)
+            } catch (e: CancellationException) {
+                logger?.debug(TAG, "Silent reconnect cancelled ($reason)")
+                markNetworkLostIfConnecting()
+                throw e
+            }
+        }
+    }
+
+    private fun markNetworkLostIfConnecting() {
+        scope.launch {
+            mutex.withLock {
+                if (_status.value is ConnectionStatus.Connecting && activeProfileId != null) {
+                    markNetworkLostLocked()
+                }
+            }
+        }
+    }
+
+    private fun markNetworkLostLocked() {
+        session?.close()
+        session = null
+        val snapshot = lastConnected
+        if (snapshot != null) {
+            _status.value = snapshot.copy(networkLost = true, tlsActive = false)
+            logger?.info(TAG, "Marked networkLost for profile ${snapshot.profileId}")
+            return
+        }
+        val current = _status.value
+        if (current is ConnectionStatus.Connected) {
+            _status.value = current.copy(networkLost = true)
         }
     }
 

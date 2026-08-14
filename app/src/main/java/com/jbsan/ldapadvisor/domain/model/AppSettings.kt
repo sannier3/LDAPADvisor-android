@@ -10,4 +10,6 @@ data class AppSettings(
     val reportSanitizationDefault: Boolean = true,
     val historyRetentionDays: Int = 30,
     val saveSearchHistory: Boolean = true,
+    /** When true, verbose connection/Kerberos DEBUG lines are kept and mirrored to logcat. */
+    val debugLoggingEnabled: Boolean = false,
 )

@@ -35,6 +35,10 @@ class SettingsViewModel(
     fun setSanitize(v: Boolean) = viewModelScope.launch { settingsRepository.setReportSanitizationDefault(v) }
     fun setRetention(v: Int) = viewModelScope.launch { settingsRepository.setHistoryRetentionDays(v) }
     fun setSaveSearchHistory(v: Boolean) = viewModelScope.launch { settingsRepository.setSaveSearchHistory(v) }
+    fun setDebugLogging(v: Boolean) = viewModelScope.launch {
+        settingsRepository.setDebugLoggingEnabled(v)
+        logger.debugEnabled = v
+    }
 
     fun exportLogs(context: Context) = viewModelScope.launch {
         runCatching {

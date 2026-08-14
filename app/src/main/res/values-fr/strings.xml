@@ -355,6 +355,9 @@
     <string name="settings_intro">Préférences de l\'application, raccourcis d\'administration et informations légales. Les onglets du bas restent disponibles pour revenir au tableau de bord.</string>
     <string name="settings_section_appearance">Apparence</string>
     <string name="settings_section_safety">Sécurité par défaut</string>
+    <string name="settings_section_developer">Développeur</string>
+    <string name="settings_debug_logging">Journaux de débogage</string>
+    <string name="settings_debug_logging_hint">Enregistre les étapes LDAP/TLS/Kerberos (sans mots de passe). Filtrez logcat avec LDAPADvisor, ou exportez les journaux anonymisés après un échec de connexion.</string>
     <string name="settings_section_timeouts">Délais et conservation</string>
     <string name="settings_section_admin">Raccourcis administrateur</string>
     <string name="settings_section_admin_hint">Ouvre les écrans d\'administration d\'annuaire. Pour le quotidien, préférez les actions rapides du tableau de bord.</string>

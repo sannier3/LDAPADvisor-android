@@ -108,11 +108,18 @@ class ProfilesViewModel(
             return@launch
         }
 
+        if (_ui.value.connecting) {
+            effectivePassword?.fill('\u0000')
+            return@launch
+        }
+
         _ui.value = _ui.value.copy(
             connecting = true,
             error = null,
             message = null,
             requirePassword = false,
+            requireInsecureTrustConfirm = false,
+            requirePlaintextConfirm = false,
         )
         val result = sessionManager.connect(
             profile = profile,
@@ -184,6 +191,7 @@ class ProfilesViewModel(
 
     fun confirmInsecureTrustConnect() {
         val id = _ui.value.pendingConnectId ?: return
+        if (_ui.value.connecting) return
         connect(id = id, allowPlaintext = true, allowInsecureTrust = true)
     }
 

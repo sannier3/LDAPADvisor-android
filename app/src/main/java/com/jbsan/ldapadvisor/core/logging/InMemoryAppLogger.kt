@@ -2,6 +2,7 @@ package com.jbsan.ldapadvisor.core.logging
 
 import android.util.Log
 import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 class InMemoryAppLogger(
@@ -13,8 +14,33 @@ class InMemoryAppLogger(
     private val lock = Any()
     private val events = ArrayDeque<LogEvent>(maxEvents)
     private val sequence = AtomicInteger(0)
+    private val debugFlag = AtomicBoolean(false)
+
+    override var debugEnabled: Boolean
+        get() = debugFlag.get()
+        set(value) {
+            val previous = debugFlag.getAndSet(value)
+            if (previous == value) return
+            if (value) {
+                emit(LogLevel.INFO, "AppLogger", "Debug logging enabled", null, null, null)
+            } else {
+                emit(LogLevel.INFO, "AppLogger", "Debug logging disabled", null, null, null)
+            }
+        }
 
     override fun log(
+        level: LogLevel,
+        component: String,
+        message: String,
+        errorCode: String?,
+        durationMs: Long?,
+        throwable: Throwable?,
+    ) {
+        if (level == LogLevel.DEBUG && !debugEnabled) return
+        emit(level, component, message, errorCode, durationMs, throwable)
+    }
+
+    private fun emit(
         level: LogLevel,
         component: String,
         message: String,

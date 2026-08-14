@@ -365,6 +365,9 @@
     <string name="settings_intro">App preferences, admin shortcuts and legal information. Bottom tabs stay available to return to Dashboard.</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_safety">Safety defaults</string>
+    <string name="settings_section_developer">Developer</string>
+    <string name="settings_debug_logging">Debug logging</string>
+    <string name="settings_debug_logging_hint">Logs detailed LDAP/TLS/Kerberos connection steps (no passwords). Filter logcat by LDAPADvisor, or export sanitized logs after a failed connect.</string>
     <string name="settings_section_timeouts">Timeouts &amp; retention</string>
     <string name="settings_section_admin">Admin shortcuts</string>
     <string name="settings_section_admin_hint">Open directory administration screens. Prefer Dashboard quick actions for daily work.</string>

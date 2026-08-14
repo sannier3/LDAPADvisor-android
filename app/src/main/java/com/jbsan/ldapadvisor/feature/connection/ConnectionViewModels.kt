@@ -30,12 +30,26 @@ class ConnectionViewModel(
     val needInsecureTrust: StateFlow<Boolean> = _needInsecureTrust.asStateFlow()
     private var pendingProfileId: String? = null
 
+    fun confirmPlaintext() {
+        val id = pendingProfileId ?: return
+        connect(id, allowPlaintext = true, allowInsecureTrust = true)
+    }
+
+    fun confirmInsecureTrust() {
+        val id = pendingProfileId ?: return
+        connect(id, allowPlaintext = true, allowInsecureTrust = true)
+    }
+
+    private var connectJob: kotlinx.coroutines.Job? = null
+
     fun connect(
         profileId: String,
         password: CharArray? = null,
         allowPlaintext: Boolean = false,
         allowInsecureTrust: Boolean = false,
-    ) = viewModelScope.launch {
+    ) {
+        if (connectJob?.isActive == true) return
+        connectJob = viewModelScope.launch {
             val profile = profileRepository.getById(profileId) ?: return@launch
             val pwd = password ?: if (profile.rememberPassword) secretStore.getPassword(profileId) else null
             sessionManager.connect(
@@ -72,15 +86,6 @@ class ConnectionViewModel(
                 },
             )
         }
-
-    fun confirmPlaintext() {
-        val id = pendingProfileId ?: return
-        connect(id, allowPlaintext = true, allowInsecureTrust = true)
-    }
-
-    fun confirmInsecureTrust() {
-        val id = pendingProfileId ?: return
-        connect(id, allowPlaintext = true, allowInsecureTrust = true)
     }
 
     fun dismissInsecureTrust() {

@@ -18,6 +18,11 @@ class LdapAdvisorApp : Application() {
         container = AppContainer(this)
         container.networkMonitor.start()
         appScope.launch {
+            container.settingsRepository.settings.collectLatest { settings ->
+                container.logger.debugEnabled = settings.debugLoggingEnabled
+            }
+        }
+        appScope.launch {
             container.networkMonitor.networkAvailable.collectLatest { available ->
                 container.sessionManager.onNetworkAvailabilityChanged(available)
             }

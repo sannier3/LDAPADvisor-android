@@ -17,6 +17,9 @@ data class LogEvent(
 )
 
 interface AppLogger {
+    /** When false, [LogLevel.DEBUG] events are dropped (not stored, not mirrored to logcat). */
+    var debugEnabled: Boolean
+
     fun log(
         level: LogLevel,
         component: String,

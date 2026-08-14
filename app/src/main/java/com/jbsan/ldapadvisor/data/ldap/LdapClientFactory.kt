@@ -32,12 +32,19 @@ class LdapClientFactory(
         customCaCertificates: List<X509Certificate> = emptyList(),
     ): Result<OpenedClient> = withContext(Dispatchers.IO) {
         try {
+            logger?.debug(
+                "LdapClientFactory",
+                "Open ${profile.securityMode} ${profile.host}:${profile.port} " +
+                    "trust=${profile.trustMode} connectTimeoutMs=${profile.connectTimeoutMs} " +
+                    "readTimeoutMs=${profile.readTimeoutMs}",
+            )
             val cas = customCaCertificates.ifEmpty {
                 loadCustomCas(profile)
             }
             val needsTlsFactory = profile.securityMode == SecurityMode.LDAPS ||
                 profile.securityMode == SecurityMode.START_TLS
             val sslBundle = if (needsTlsFactory) {
+                logger?.debug("LdapClientFactory", "Building SSL factory trust=${profile.trustMode} cas=${cas.size}")
                 sslFactoryFactory.create(
                     trustMode = profile.trustMode,
                     customCaCertificates = cas,
@@ -57,6 +64,7 @@ class LdapClientFactory(
                 setAbandonOnTimeout(true)
             }
 
+            logger?.debug("LdapClientFactory", "TCP/TLS connect…")
             val connection = when (profile.securityMode) {
                 SecurityMode.LDAPS -> {
                     LDAPConnection(sslBundle!!.socketFactory, options, profile.host, profile.port)
@@ -74,6 +82,7 @@ class LdapClientFactory(
                     }
                     val conn = LDAPConnection(plainOptions, profile.host, profile.port)
                     try {
+                        logger?.debug("LdapClientFactory", "StartTLS extended operation…")
                         val startTls = StartTLSExtendedRequest(sslBundle!!.socketFactory)
                         conn.processExtendedOperation(startTls)
                         conn
@@ -86,6 +95,7 @@ class LdapClientFactory(
 
             val tlsActive = profile.securityMode == SecurityMode.LDAPS ||
                 profile.securityMode == SecurityMode.START_TLS
+            logger?.debug("LdapClientFactory", "Socket ready tlsActive=$tlsActive")
             val client = LdapClient(
                 connection = connection,
                 profile = profile,
@@ -94,7 +104,7 @@ class LdapClientFactory(
             )
             Result.success(OpenedClient(client, tlsActive, sslBundle))
         } catch (e: Exception) {
-            logger?.error("LdapClientFactory", "Failed to open LDAP connection", e)
+            logger?.error("LdapClientFactory", "Failed to open LDAP connection: ${e.message}", e)
             Result.failure(LdapErrorMapper.map(e))
         }
     }

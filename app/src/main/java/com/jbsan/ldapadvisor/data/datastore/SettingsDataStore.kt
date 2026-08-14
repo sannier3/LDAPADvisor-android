@@ -21,35 +21,12 @@ class SettingsDataStore(context: Context) {
     private val dataStore = context.applicationContext.settingsDataStore
 
     val settings: Flow<AppSettings> = dataStore.data.map { prefs ->
-        AppSettings(
-            themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-                ?: ThemeMode.SYSTEM,
-            readOnlyByDefault = prefs[Keys.READ_ONLY_BY_DEFAULT] ?: true,
-            defaultConnectTimeoutMs = prefs[Keys.CONNECT_TIMEOUT] ?: 5_000,
-            defaultReadTimeoutMs = prefs[Keys.READ_TIMEOUT] ?: 10_000,
-            diagnosticConcurrency = prefs[Keys.DIAG_CONCURRENCY] ?: 4,
-            diagnosticTcpTimeoutMs = prefs[Keys.DIAG_TCP_TIMEOUT] ?: 3_000,
-            reportSanitizationDefault = prefs[Keys.REPORT_SANITIZE] ?: true,
-            historyRetentionDays = prefs[Keys.HISTORY_RETENTION] ?: 30,
-            saveSearchHistory = prefs[Keys.SAVE_SEARCH_HISTORY] ?: true,
-        )
+        prefs.toAppSettings()
     }
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         dataStore.edit { prefs ->
-            val current = AppSettings(
-                themeMode = prefs[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
-                    ?: ThemeMode.SYSTEM,
-                readOnlyByDefault = prefs[Keys.READ_ONLY_BY_DEFAULT] ?: true,
-                defaultConnectTimeoutMs = prefs[Keys.CONNECT_TIMEOUT] ?: 5_000,
-                defaultReadTimeoutMs = prefs[Keys.READ_TIMEOUT] ?: 10_000,
-                diagnosticConcurrency = prefs[Keys.DIAG_CONCURRENCY] ?: 4,
-                diagnosticTcpTimeoutMs = prefs[Keys.DIAG_TCP_TIMEOUT] ?: 3_000,
-                reportSanitizationDefault = prefs[Keys.REPORT_SANITIZE] ?: true,
-                historyRetentionDays = prefs[Keys.HISTORY_RETENTION] ?: 30,
-                saveSearchHistory = prefs[Keys.SAVE_SEARCH_HISTORY] ?: true,
-            )
-            val next = transform(current)
+            val next = transform(prefs.toAppSettings())
             prefs[Keys.THEME] = next.themeMode.name
             prefs[Keys.READ_ONLY_BY_DEFAULT] = next.readOnlyByDefault
             prefs[Keys.CONNECT_TIMEOUT] = next.defaultConnectTimeoutMs
@@ -59,8 +36,23 @@ class SettingsDataStore(context: Context) {
             prefs[Keys.REPORT_SANITIZE] = next.reportSanitizationDefault
             prefs[Keys.HISTORY_RETENTION] = next.historyRetentionDays
             prefs[Keys.SAVE_SEARCH_HISTORY] = next.saveSearchHistory
+            prefs[Keys.DEBUG_LOGGING] = next.debugLoggingEnabled
         }
     }
+
+    private fun Preferences.toAppSettings(): AppSettings = AppSettings(
+        themeMode = this[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
+            ?: ThemeMode.SYSTEM,
+        readOnlyByDefault = this[Keys.READ_ONLY_BY_DEFAULT] ?: true,
+        defaultConnectTimeoutMs = this[Keys.CONNECT_TIMEOUT] ?: 5_000,
+        defaultReadTimeoutMs = this[Keys.READ_TIMEOUT] ?: 10_000,
+        diagnosticConcurrency = this[Keys.DIAG_CONCURRENCY] ?: 4,
+        diagnosticTcpTimeoutMs = this[Keys.DIAG_TCP_TIMEOUT] ?: 3_000,
+        reportSanitizationDefault = this[Keys.REPORT_SANITIZE] ?: true,
+        historyRetentionDays = this[Keys.HISTORY_RETENTION] ?: 30,
+        saveSearchHistory = this[Keys.SAVE_SEARCH_HISTORY] ?: true,
+        debugLoggingEnabled = this[Keys.DEBUG_LOGGING] ?: false,
+    )
 
     private object Keys {
         val THEME = stringPreferencesKey("theme_mode")
@@ -72,5 +64,6 @@ class SettingsDataStore(context: Context) {
         val REPORT_SANITIZE = booleanPreferencesKey("report_sanitization_default")
         val HISTORY_RETENTION = intPreferencesKey("history_retention_days")
         val SAVE_SEARCH_HISTORY = booleanPreferencesKey("save_search_history")
+        val DEBUG_LOGGING = booleanPreferencesKey("debug_logging_enabled")
     }
 }

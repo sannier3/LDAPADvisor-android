@@ -4,8 +4,8 @@ Living document. Status values: `IMPLEMENTED` | `LIMITED` | `UNSUPPORTED`
 
 ## Current implementation checkpoint
 
-- **Version:** `0.1.0` (`versionCode` 1)
-- **Last completed phase:** Embedded Kerberos (Apache Kerby) + SASL GSS-SPNEGO/GSSAPI bind, persistent primary navigation, AD user profile edit, copy user, insecure TLS trust with confirm
+- **Version:** `0.1.1` (`versionCode` 2)
+- **Last completed phase:** Kerberos GSSAPI SASL bind end-to-end (mutual AP-REP + security-layer Wrap), faster SPN path, keep-alive reconnect after lock, persistent primary navigation, AD user profile edit, copy user, insecure TLS trust with confirm
 - **Build target:** `minSdk` 24, `compileSdk` / `targetSdk` **37**
 - **i18n:** English (`values`) + French (`values-fr`)
 - **Room:** version **4** with migrations `1→2`, `2→3` (Kerberos fields), `3→4` (trust mode rename)
@@ -25,7 +25,7 @@ Living document. Status values: `IMPLEMENTED` | `LIMITED` | `UNSUPPORTED`
 | Network awareness | IMPLEMENTED | | `NetworkMonitor` + session `networkLost` banner |
 | LDAP / LDAPS / StartTLS | IMPLEMENTED | Partial unit | |
 | Simple bind | IMPLEMENTED | | |
-| Kerberos auth / SASL GSS bind | IMPLEMENTED | Unit (GSS/SPNEGO codec) | Embedded Apache Kerby + GSS-SPNEGO/GSSAPI; not OS Kerberos |
+| Kerberos auth / SASL GSS bind | IMPLEMENTED | Unit (GSS/SPNEGO + RFC1964 Wrap) | Embedded Apache Kerby; mutual AP-REP + security-layer Wrap; not OS Kerberos |
 | RootDSE / Schema | IMPLEMENTED | | |
 | Raw LDAP technician mode | IMPLEMENTED | | Search / BASE read / compare; mutations stay on Object Details |
 | AD DNS discovery (SRV) | IMPLEMENTED | | Per-DC optional **Test TCP** after discover |

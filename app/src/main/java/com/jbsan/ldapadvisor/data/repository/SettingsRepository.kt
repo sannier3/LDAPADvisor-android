@@ -42,6 +42,10 @@ class SettingsRepository(
         settingsDataStore.update { it.copy(saveSearchHistory = value) }
     }
 
+    suspend fun setDebugLoggingEnabled(value: Boolean) {
+        settingsDataStore.update { it.copy(debugLoggingEnabled = value) }
+    }
+
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         settingsDataStore.update(transform)
     }
