@@ -1,9 +1,14 @@
 package com.jbsan.ldapadvisor.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CheckCircle
@@ -21,13 +26,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
-import com.jbsan.ldapadvisor.ui.ComposeModifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jbsan.ldapadvisor.R
 import com.jbsan.ldapadvisor.domain.model.DiagnosticStatus
+import com.jbsan.ldapadvisor.ui.ComposeModifier
 import com.jbsan.ldapadvisor.ui.theme.StatusError
 import com.jbsan.ldapadvisor.ui.theme.StatusErrorContainer
 import com.jbsan.ldapadvisor.ui.theme.StatusInfo
@@ -117,4 +125,33 @@ fun EmptyState(
         Text(title, style = MaterialTheme.typography.titleLarge)
         Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** App mark (icon only) or wordmark (logo + text). */
+@Composable
+fun AppBrandImage(
+    @DrawableRes drawableRes: Int,
+    modifier: ComposeModifier = ComposeModifier,
+    height: Dp = 96.dp,
+    contentScale: ContentScale = ContentScale.Fit,
+) {
+    Image(
+        painter = painterResource(drawableRes),
+        contentDescription = stringResource(R.string.cd_app_logo),
+        modifier = modifier.height(height).fillMaxWidth(),
+        contentScale = contentScale,
+    )
+}
+
+@Composable
+fun AppLogoMark(
+    modifier: ComposeModifier = ComposeModifier,
+    size: Dp = 72.dp,
+) {
+    Image(
+        painter = painterResource(R.drawable.logo_mark),
+        contentDescription = stringResource(R.string.cd_app_logo),
+        modifier = modifier.size(size),
+        contentScale = ContentScale.Fit,
+    )
 }

@@ -30,8 +30,10 @@ data class UserGroupMembership(
 
 data class UserEditForm(
     val dn: String = "",
+    val cn: String = "",
     val givenName: String = "",
     val sn: String = "",
+    val initials: String = "",
     val displayName: String = "",
     val mail: String = "",
     val telephoneNumber: String = "",
@@ -41,12 +43,19 @@ data class UserEditForm(
     val city: String = "",
     val state: String = "",
     val postalCode: String = "",
+    /** ISO country code `c` (e.g. FR). */
     val country: String = "",
+    /** Friendly name `co` (AD). */
+    val countryName: String = "",
+    /** Numeric `countryCode` (AD). */
+    val countryCode: String = "",
     val title: String = "",
     val department: String = "",
     val company: String = "",
+    val description: String = "",
     val samAccountName: String = "",
     val userPrincipalName: String = "",
+    val uid: String = "",
     val memberOf: List<String> = emptyList(),
     /** Effective memberships: primary group + memberOf (AD primary is not in memberOf). */
     val memberships: List<UserGroupMembership> = emptyList(),
@@ -68,6 +77,7 @@ data class UserDetailUiState(
     val readOnly: Boolean = true,
     val isAd: Boolean = false,
     val tlsActive: Boolean = false,
+    val allowsPasswordChannel: Boolean = false,
     val error: String? = null,
     val message: String? = null,
     val dirty: Boolean = false,
@@ -96,9 +106,11 @@ class UserDetailViewModel(
                 filter = "(objectClass=*)",
                 scope = SearchScopeMode.BASE,
                 attributes = arrayOf(
-                    "givenName", "sn", "displayName", "mail", "telephoneNumber", "mobile",
-                    "wWWHomePage", "streetAddress", "l", "st", "postalCode", "c", "co",
-                    "title", "department", "company", "sAMAccountName", "userPrincipalName",
+                    "cn", "uid", "givenName", "sn", "initials", "displayName", "mail",
+                    "telephoneNumber", "mobile", "wWWHomePage", "labeledURI",
+                    "streetAddress", "street", "l", "st", "postalCode", "c", "co", "countryCode",
+                    "title", "department", "company", "description",
+                    "sAMAccountName", "userPrincipalName",
                     "memberOf", "primaryGroupID", "userAccountControl", "pwdLastSet",
                     "objectSid", "objectGUID", "distinguishedName",
                 ),
@@ -138,6 +150,7 @@ class UserDetailViewModel(
             readOnly = session.readOnly,
             isAd = session.capabilities.isActiveDirectory,
             tlsActive = session.tlsActive,
+            allowsPasswordChannel = session.allowsPasswordChannel,
             dirty = false,
         )
     }
@@ -179,19 +192,29 @@ class UserDetailViewModel(
         val mods = buildList {
             addReplace("givenName", f.givenName)
             addReplace("sn", f.sn)
+            addReplace("initials", f.initials)
+            // displayName does not rename the object (cn) and does not touch initials.
             addReplace("displayName", f.displayName)
             addReplace("mail", f.mail)
             addReplace("telephoneNumber", f.telephoneNumber)
             addReplace("mobile", f.mobile)
             addReplace("wWWHomePage", f.wwwHomePage)
             addReplace("streetAddress", f.streetAddress)
+            if (!session.capabilities.isActiveDirectory) {
+                addReplace("street", f.streetAddress)
+            }
             addReplace("l", f.city)
             addReplace("st", f.state)
             addReplace("postalCode", f.postalCode)
             addReplace("c", f.country)
+            if (session.capabilities.isActiveDirectory) {
+                addReplace("co", f.countryName)
+                addReplace("countryCode", f.countryCode)
+            }
             addReplace("title", f.title)
             addReplace("department", f.department)
             addReplace("company", f.company)
+            addReplace("description", f.description)
         }
         session.client.modify(f.dn, mods).fold(
             onSuccess = {
@@ -387,11 +410,12 @@ class UserDetailViewModel(
             )
             return@launch
         }
-        if (!session.tlsActive) {
+        if (!session.allowsPasswordChannel) {
             password.fill('\u0000')
             _ui.value = _ui.value.copy(
                 passwordResetBusy = false,
-                passwordResetError = "A secure channel (LDAPS or StartTLS) is required",
+                passwordResetError =
+                    "A secure channel is required (LDAPS, StartTLS, or Kerberos SASL bind)",
             )
             return@launch
         }
@@ -618,23 +642,31 @@ class UserDetailViewModel(
         val mustChange = pwdLastSet == "0"
         return UserEditForm(
             dn = dn,
+            cn = firstString("cn").orEmpty(),
             givenName = firstString("givenName").orEmpty(),
             sn = firstString("sn").orEmpty(),
+            initials = firstString("initials").orEmpty(),
             displayName = firstString("displayName").orEmpty(),
             mail = firstString("mail").orEmpty(),
             telephoneNumber = firstString("telephoneNumber").orEmpty(),
             mobile = firstString("mobile").orEmpty(),
-            wwwHomePage = firstString("wWWHomePage").orEmpty(),
-            streetAddress = firstString("streetAddress").orEmpty(),
+            wwwHomePage = firstString("wWWHomePage")
+                ?: firstString("labeledURI").orEmpty(),
+            streetAddress = firstString("streetAddress")
+                ?: firstString("street").orEmpty(),
             city = firstString("l").orEmpty(),
             state = firstString("st").orEmpty(),
             postalCode = firstString("postalCode").orEmpty(),
-            country = firstString("c") ?: firstString("co").orEmpty(),
+            country = firstString("c").orEmpty(),
+            countryName = firstString("co").orEmpty(),
+            countryCode = firstString("countryCode").orEmpty(),
             title = firstString("title").orEmpty(),
             department = firstString("department").orEmpty(),
             company = firstString("company").orEmpty(),
+            description = firstString("description").orEmpty(),
             samAccountName = firstString("sAMAccountName").orEmpty(),
             userPrincipalName = firstString("userPrincipalName").orEmpty(),
+            uid = firstString("uid").orEmpty(),
             memberOf = stringValues("memberOf"),
             primaryGroupId = firstString("primaryGroupID").orEmpty(),
             mustChangePassword = mustChange,

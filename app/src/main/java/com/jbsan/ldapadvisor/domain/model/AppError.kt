@@ -118,7 +118,8 @@ sealed class AppError : Exception() {
     ) : AppError()
 
     data class SecureChannelRequired(
-        override val message: String = "A secure channel (LDAPS or StartTLS) is required",
+        override val message: String =
+            "A secure channel is required (LDAPS, StartTLS, or Kerberos SASL bind)",
         override val technicalDetails: String? = null,
     ) : AppError()
 

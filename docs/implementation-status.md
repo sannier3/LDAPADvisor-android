@@ -4,8 +4,8 @@ Living document. Status values: `IMPLEMENTED` | `LIMITED` | `UNSUPPORTED`
 
 ## Current implementation checkpoint
 
-- **Version:** `0.1.1` (`versionCode` 2)
-- **Last completed phase:** Kerberos GSSAPI SASL bind end-to-end (mutual AP-REP + security-layer Wrap), faster SPN path, keep-alive reconnect after lock, persistent primary navigation, AD user profile edit, copy user, insecure TLS trust with confirm
+- **Version:** `0.1.2` (`versionCode` 3)
+- **Last completed phase:** Generic LDAP browse/search/copy (inetOrgPerson + conditional Samba/POSIX), OU tree picker, AD country attrs, password channel over Kerberos, LDAPADvisor branding
 - **Build target:** `minSdk` 24, `compileSdk` / `targetSdk` **37**
 - **i18n:** English (`values`) + French (`values-fr`)
 - **Room:** version **4** with migrations `1→2`, `2→3` (Kerberos fields), `3→4` (trust mode rename)

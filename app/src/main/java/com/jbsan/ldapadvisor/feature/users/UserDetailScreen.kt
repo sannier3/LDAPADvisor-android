@@ -126,15 +126,22 @@ fun UserDetailScreen(
         // Identity summary
         SectionCard(title = stringResource(R.string.user_section_identity)) {
             ReadOnlyLine(stringResource(R.string.object_dn), ui.form.dn)
-            ReadOnlyLine(stringResource(R.string.create_sam), ui.form.samAccountName)
-            ReadOnlyLine(stringResource(R.string.create_upn), ui.form.userPrincipalName)
+            ReadOnlyLine(stringResource(R.string.create_cn), ui.form.cn)
+            if (ui.isAd) {
+                ReadOnlyLine(stringResource(R.string.create_sam), ui.form.samAccountName)
+                ReadOnlyLine(stringResource(R.string.create_upn), ui.form.userPrincipalName)
+            } else if (ui.form.uid.isNotBlank()) {
+                ReadOnlyLine(stringResource(R.string.create_uid), ui.form.uid)
+            }
             ui.form.sid?.let { ReadOnlyLine("SID", it) }
             ui.form.guid?.let { ReadOnlyLine("GUID", it) }
-            Text(
-                if (ui.form.enabled) stringResource(R.string.user_enabled) else stringResource(R.string.user_disabled),
-                style = MaterialTheme.typography.titleMedium,
-                color = if (ui.form.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-            )
+            if (ui.isAd) {
+                Text(
+                    if (ui.form.enabled) stringResource(R.string.user_enabled) else stringResource(R.string.user_disabled),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (ui.form.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+            }
         }
 
         // Editable identity / contact
@@ -144,6 +151,9 @@ fun UserDetailScreen(
             }
             Field(stringResource(R.string.user_field_surname), ui.form.sn, !ui.readOnly) {
                 viewModel.update { f -> f.copy(sn = it) }
+            }
+            Field(stringResource(R.string.user_field_initials), ui.form.initials, !ui.readOnly) {
+                viewModel.update { f -> f.copy(initials = it) }
             }
             Field(stringResource(R.string.create_display_name), ui.form.displayName, !ui.readOnly) {
                 viewModel.update { f -> f.copy(displayName = it) }
@@ -188,6 +198,17 @@ fun UserDetailScreen(
             }
             Field(stringResource(R.string.user_field_country), ui.form.country, !ui.readOnly) {
                 viewModel.update { f -> f.copy(country = it) }
+            }
+            if (ui.isAd) {
+                Field(stringResource(R.string.user_field_country_name), ui.form.countryName, !ui.readOnly) {
+                    viewModel.update { f -> f.copy(countryName = it) }
+                }
+                Field(stringResource(R.string.user_field_country_code), ui.form.countryCode, !ui.readOnly) {
+                    viewModel.update { f -> f.copy(countryCode = it) }
+                }
+            }
+            Field(stringResource(R.string.object_field_description), ui.form.description, !ui.readOnly) {
+                viewModel.update { f -> f.copy(description = it) }
             }
             if (!ui.readOnly) {
                 val saveContactLabel = stringResource(R.string.user_action_save_contact)
@@ -337,26 +358,28 @@ fun UserDetailScreen(
 
         // Account actions
         var confirmAction by remember { mutableStateOf<String?>(null) }
-        if (ui.isAd && !ui.readOnly) {
+        if (!ui.readOnly) {
             SectionCard(title = stringResource(R.string.user_section_actions)) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    OutlinedButton(onClick = { confirmAction = "unlock" }) {
-                        Text(stringResource(R.string.action_unlock))
-                    }
-                    OutlinedButton(onClick = { confirmAction = "enable" }) {
-                        Text(stringResource(R.string.action_enable))
-                    }
-                    OutlinedButton(onClick = { confirmAction = "disable" }) {
-                        Text(stringResource(R.string.action_disable))
-                    }
-                    OutlinedButton(
-                        onClick = { viewModel.showReset(true) },
-                        enabled = ui.tlsActive,
-                    ) {
-                        Text(stringResource(R.string.action_reset_password))
+                    if (ui.isAd) {
+                        OutlinedButton(onClick = { confirmAction = "unlock" }) {
+                            Text(stringResource(R.string.action_unlock))
+                        }
+                        OutlinedButton(onClick = { confirmAction = "enable" }) {
+                            Text(stringResource(R.string.action_enable))
+                        }
+                        OutlinedButton(onClick = { confirmAction = "disable" }) {
+                            Text(stringResource(R.string.action_disable))
+                        }
+                        OutlinedButton(
+                            onClick = { viewModel.showReset(true) },
+                            enabled = ui.allowsPasswordChannel,
+                        ) {
+                            Text(stringResource(R.string.action_reset_password))
+                        }
                     }
                     if (onCopyUser != null) {
                         OutlinedButton(onClick = { onCopyUser(ui.form.dn) }) {
@@ -364,7 +387,7 @@ fun UserDetailScreen(
                         }
                     }
                 }
-                if (!ui.tlsActive) {
+                if (ui.isAd && !ui.allowsPasswordChannel) {
                     Text(
                         stringResource(R.string.user_reset_requires_tls),
                         style = MaterialTheme.typography.bodySmall,

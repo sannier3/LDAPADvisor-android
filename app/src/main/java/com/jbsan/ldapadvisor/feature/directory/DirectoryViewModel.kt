@@ -8,6 +8,7 @@ import com.jbsan.ldapadvisor.data.ldap.LdapEntryData
 import com.jbsan.ldapadvisor.data.ldap.LdapSearchRequest
 import com.jbsan.ldapadvisor.data.ldap.SearchScopeMode
 import com.jbsan.ldapadvisor.data.ldap.SessionManager
+import com.jbsan.ldapadvisor.domain.model.resolveBrowseRootDns
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,25 +47,30 @@ class DirectoryViewModel(
             return@launch
         }
         _ui.value = _ui.value.copy(loading = true, error = null, connected = true)
-        val rootDn = session.capabilities.defaultNamingContext
-            ?.takeIf { it.isNotBlank() }
-            ?: session.rootDse?.defaultNamingContext.orEmpty()
-        if (rootDn.isBlank()) {
-            _ui.value = DirectoryUiState(connected = true, error = "No base DN", loading = false)
+        val rootDns = session.capabilities.resolveBrowseRootDns()
+        if (rootDns.isEmpty()) {
+            _ui.value = DirectoryUiState(
+                connected = true,
+                error = "No base DN — set Base DN on the profile or check Root DSE namingContexts",
+                loading = false,
+            )
             return@launch
         }
-        val entry = session.client.search(
-            LdapSearchRequest(rootDn, "(objectClass=*)", SearchScopeMode.BASE, BROWSE_ATTRS),
-        ).getOrNull()?.firstOrNull()
-        val root = entry.toNode(fallbackDn = rootDn)
+        val roots = mutableListOf<DirectoryNode>()
+        for (rootDn in rootDns) {
+            val entry = session.client.search(
+                LdapSearchRequest(rootDn, "(objectClass=*)", SearchScopeMode.BASE, BROWSE_ATTRS),
+            ).getOrNull()?.firstOrNull()
+            roots += entry.toNode(fallbackDn = rootDn)
+        }
         _ui.value = DirectoryUiState(
-            rootDn = rootDn,
-            roots = listOf(root),
+            rootDn = rootDns.first(),
+            roots = roots,
             connected = true,
             loading = false,
         )
-        // Auto-expand domain root so the explorer is immediately useful.
-        toggle(rootDn)
+        // Auto-expand first root so the explorer is immediately useful.
+        toggle(rootDns.first())
     }
 
     fun toggle(dn: String) = viewModelScope.launch {
@@ -117,7 +123,7 @@ class DirectoryViewModel(
     private fun LdapEntryData?.toNode(fallbackDn: String = ""): DirectoryNode {
         val dn = this?.dn?.takeIf { it.isNotBlank() } ?: fallbackDn
         val classes = this?.stringValues("objectClass").orEmpty()
-        val kind = DirectoryObjectClassifier.classify(classes)
+        val kind = DirectoryObjectClassifier.classify(classes, dn)
         val display = DirectoryObjectClassifier.displayName(
             dn = dn,
             objectClasses = classes,

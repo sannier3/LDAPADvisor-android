@@ -10,6 +10,8 @@ import com.jbsan.ldapadvisor.domain.model.ConnectionProfile
 import com.jbsan.ldapadvisor.domain.model.ConnectionStatus
 import com.jbsan.ldapadvisor.domain.model.DirectoryCapabilities
 import com.jbsan.ldapadvisor.domain.model.TrustMode
+import com.jbsan.ldapadvisor.domain.model.withDirectoryTypeHint
+import com.jbsan.ldapadvisor.domain.model.withResolvedSearchBase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -284,10 +286,15 @@ class SessionManager(
         }
 
         val rootDse = client.readRootDse().getOrNull()
-        val capabilities = rootDse?.toCapabilities() ?: DirectoryCapabilities()
-        val effectiveBase = profile.baseDn.ifBlank { rootDse?.defaultNamingContext.orEmpty() }
-        if (profile.baseDn.isBlank() && effectiveBase.isNotBlank()) {
-            logger?.info(TAG, "Using defaultNamingContext as base DN")
+        val capabilities = (rootDse?.toCapabilities() ?: DirectoryCapabilities())
+            .withDirectoryTypeHint(profile.directoryType)
+            .withResolvedSearchBase(profile.baseDn)
+        if (profile.baseDn.isBlank() && !capabilities.defaultNamingContext.isNullOrBlank()) {
+            logger?.info(
+                TAG,
+                "Using resolved base DN=${capabilities.defaultNamingContext} " +
+                    "(directoryType=${profile.directoryType})",
+            )
         }
 
         val newSession = LdapSession(client, rootDse, capabilities)
@@ -314,10 +321,15 @@ class SessionManager(
             responseTimeMs = elapsed,
             networkLost = false,
             insecureTrust = profile.trustMode == TrustMode.INSECURE_NO_VERIFY,
+            kerberosBound = client.isKerberosBound,
         )
         lastConnected = connected
         _status.value = connected
-        logger?.info(TAG, "Connected boundAs=$boundAs tls=${opened.tlsActive} durationMs=$elapsed")
+        logger?.info(
+            TAG,
+            "Connected boundAs=$boundAs tls=${opened.tlsActive} " +
+                "kerberos=${client.isKerberosBound} durationMs=$elapsed",
+        )
         profileRepository.markLastSuccessfulConnection(profile.id)
         startKeepAliveLocked()
         return Result.success(newSession)

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jbsan.ldapadvisor.core.ad.AdSearchPresets
 import com.jbsan.ldapadvisor.core.ad.GroupTypeDecoder
+import com.jbsan.ldapadvisor.core.ldap.LdapSearchPresets
 import com.jbsan.ldapadvisor.data.ldap.LdapEntryData
 import com.jbsan.ldapadvisor.data.ldap.LdapSearchRequest
 import com.jbsan.ldapadvisor.data.ldap.SearchScopeMode
@@ -41,15 +42,28 @@ class GroupsViewModel(private val sessionManager: SessionManager) : ViewModel() 
 
     fun search() = viewModelScope.launch {
         val session = sessionManager.currentSession() ?: return@launch
-        if (!session.capabilities.isActiveDirectory) {
-            _ui.value = _ui.value.copy(isAd = false)
+        val isAd = session.capabilities.isActiveDirectory
+        _ui.value = _ui.value.copy(loading = true, isAd = isAd, error = null)
+        val base = session.capabilities.defaultNamingContext.orEmpty()
+        if (base.isBlank()) {
+            _ui.value = _ui.value.copy(
+                loading = false,
+                error = "No base DN — set Base DN on the profile or check Root DSE namingContexts",
+            )
             return@launch
         }
-        _ui.value = _ui.value.copy(loading = true, isAd = true)
-        val base = session.capabilities.defaultNamingContext.orEmpty()
-        val filter = if (_ui.value.query.isBlank()) AdSearchPresets.ALL_GROUPS else AdSearchPresets.groupQuery(_ui.value.query)
+        val filter = when {
+            isAd && _ui.value.query.isBlank() -> AdSearchPresets.ALL_GROUPS
+            isAd -> AdSearchPresets.groupQuery(_ui.value.query)
+            else -> LdapSearchPresets.groupQuery(_ui.value.query)
+        }
+        val attrs = if (isAd) {
+            arrayOf("cn", "sAMAccountName", "description", "groupType", "distinguishedName")
+        } else {
+            arrayOf("cn", "description", "member", "uniqueMember", "memberUid")
+        }
         session.client.search(
-            LdapSearchRequest(base, filter, SearchScopeMode.SUB, arrayOf("cn", "sAMAccountName", "description", "groupType", "distinguishedName"), pageSize = 100),
+            LdapSearchRequest(base, filter, SearchScopeMode.SUB, attrs, pageSize = 100),
         ).fold(
             onSuccess = { _ui.value = _ui.value.copy(results = it, loading = false) },
             onFailure = { _ui.value = _ui.value.copy(loading = false, error = it.message) },
@@ -58,15 +72,29 @@ class GroupsViewModel(private val sessionManager: SessionManager) : ViewModel() 
 
     fun open(dn: String) = viewModelScope.launch {
         val session = sessionManager.currentSession() ?: return@launch
+        val isAd = session.capabilities.isActiveDirectory
         val entry = session.client.search(
             LdapSearchRequest(dn, "(objectClass=*)", SearchScopeMode.BASE, arrayOf("*", "+")),
         ).getOrNull()?.firstOrNull()
-        val members = session.client.readRangedAttribute(dn, "member").getOrDefault(emptyList())
-        _ui.value = _ui.value.copy(selected = entry, members = members, nested = emptyList())
+        val members = if (isAd) {
+            session.client.readRangedAttribute(dn, "member").getOrDefault(emptyList())
+        } else {
+            val fromEntry = buildList {
+                entry?.stringValues("member")?.let { addAll(it) }
+                entry?.stringValues("uniqueMember")?.let { addAll(it) }
+                entry?.stringValues("memberUid")?.let { addAll(it) }
+            }.distinct()
+            fromEntry
+        }
+        _ui.value = _ui.value.copy(selected = entry, members = members, nested = emptyList(), isAd = isAd)
     }
 
     fun loadNested() = viewModelScope.launch {
         val session = sessionManager.currentSession() ?: return@launch
+        if (!session.capabilities.isActiveDirectory) {
+            _ui.value = _ui.value.copy(error = "Nested group expansion requires Active Directory")
+            return@launch
+        }
         val groupDn = _ui.value.selected?.dn ?: return@launch
         val base = session.capabilities.defaultNamingContext.orEmpty()
         session.client.searchNestedGroupMembers(groupDn, base).fold(

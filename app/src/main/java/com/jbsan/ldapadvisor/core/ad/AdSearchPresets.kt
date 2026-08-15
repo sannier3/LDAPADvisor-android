@@ -40,20 +40,61 @@ enum class DirectoryObjectKind {
 }
 
 object DirectoryObjectClassifier {
-    fun classify(objectClasses: List<String>): DirectoryObjectKind {
+    fun classify(objectClasses: List<String>, dn: String = ""): DirectoryObjectKind {
         val lower = objectClasses.map { it.lowercase() }
         return when {
             lower.any { it == "computer" } -> DirectoryObjectKind.COMPUTER
-            lower.any { it == "user" || it == "inetorgperson" } -> DirectoryObjectKind.USER
-            lower.any { it == "group" || it == "groupofnames" || it == "groupofuniquenames" } ->
-                DirectoryObjectKind.GROUP
+            // Samba/AD account classes — check before generic container heuristics on CN=
+            lower.any {
+                it == "user" || it == "inetorgperson" || it == "posixaccount" || it == "sambasamaccount"
+            } && !looksLikeWellKnownContainerDn(dn) -> DirectoryObjectKind.USER
+            lower.any {
+                it == "group" || it == "groupofnames" || it == "groupofuniquenames" ||
+                    it == "posixgroup" || it == "sambagroupmapping"
+            } -> DirectoryObjectKind.GROUP
             lower.any { it == "contact" } -> DirectoryObjectKind.CONTACT
             lower.any { it == "organizationalunit" } -> DirectoryObjectKind.OU
-            lower.any { it == "container" } -> DirectoryObjectKind.CONTAINER
-            lower.any { it == "domaindns" || it == "domain" } -> DirectoryObjectKind.DOMAIN
+            lower.any {
+                it == "container" || it == "organizationalrole" || it == "builtindomain"
+            } -> DirectoryObjectKind.CONTAINER
+            // OpenLDAP / RFC2307 trees: dcObject, organization, locality, country
+            lower.any {
+                it == "domaindns" || it == "domain" || it == "dcobject" ||
+                    it == "organization" || it == "locality" || it == "country"
+            } -> DirectoryObjectKind.DOMAIN
+            // Samba / AD-style CN=Users (often only objectClass=top or sparse classes)
+            looksLikeWellKnownContainerDn(dn) -> DirectoryObjectKind.CONTAINER
             else -> DirectoryObjectKind.GENERIC
         }
     }
+
+    /**
+     * Well-known folder RDNs that should expand even when objectClass is sparse
+     * (common on Samba / OpenLDAP trees: cn=Users, cn=Groups, …).
+     */
+    fun looksLikeWellKnownContainerDn(dn: String): Boolean {
+        val rdn = dn.substringBefore(',').trim()
+        val attr = rdn.substringBefore('=').trim()
+        val value = rdn.substringAfter('=', missingDelimiterValue = "").trim()
+        if (attr.equals("ou", ignoreCase = true) ||
+            attr.equals("dc", ignoreCase = true) ||
+            attr.equals("o", ignoreCase = true) ||
+            attr.equals("c", ignoreCase = true) ||
+            attr.equals("l", ignoreCase = true)
+        ) {
+            return true
+        }
+        if (!attr.equals("cn", ignoreCase = true) || value.isEmpty()) return false
+        val v = value.lowercase()
+        return v in WELL_KNOWN_CONTAINER_CNS
+    }
+
+    private val WELL_KNOWN_CONTAINER_CNS = setOf(
+        "users", "groups", "computers", "builtin", "system",
+        "foreignsecurityprincipals", "managed service accounts",
+        "program data", "microsoft exchange system objects",
+        "ntfrs subscriptions", "winsockservices", "rpcservices",
+    )
 
     fun displayName(
         dn: String,

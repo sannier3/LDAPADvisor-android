@@ -36,8 +36,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jbsan.ldapadvisor.R
 import com.jbsan.ldapadvisor.domain.model.ConnectionStatus
 import com.jbsan.ldapadvisor.ui.ComposeModifier
+import com.jbsan.ldapadvisor.ui.components.AppLogoMark
 import com.jbsan.ldapadvisor.ui.components.EmptyState
 import com.jbsan.ldapadvisor.ui.components.SessionBanner
+import androidx.compose.ui.Alignment
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -56,7 +58,9 @@ fun DashboardScreen(
         Column(
             ComposeModifier.fillMaxSize().padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            AppLogoMark(size = 96.dp)
             EmptyState(
                 title = stringResource(R.string.dashboard_empty_title),
                 body = stringResource(R.string.dashboard_empty_body),
@@ -99,7 +103,8 @@ fun DashboardScreen(
                             status.port,
                             status.securityMode.name,
                         ),
-                        isWarning = !status.tlsActive || status.insecureTrust,
+                        isWarning = status.insecureTrust ||
+                            (!status.tlsActive && !status.kerberosBound),
                         modifier = ComposeModifier.fillMaxWidth(),
                     )
                 }
@@ -132,6 +137,7 @@ fun DashboardScreen(
             ComposeModifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            AppLogoMark(size = 56.dp)
             Text(
                 stringResource(R.string.dashboard_title),
                 style = MaterialTheme.typography.headlineSmall,
@@ -163,7 +169,12 @@ fun DashboardScreen(
                             ConnectionStatus.Disconnected -> stringResource(R.string.disconnected)
                         },
                     )
-                    InfoLine(stringResource(R.string.dashboard_directory_type), state.activeProfile?.directoryType?.name ?: "—")
+                    InfoLine(stringResource(R.string.dashboard_directory_type), 
+                        if (state.isAd) stringResource(R.string.directory_type_ad)
+                        else if (status is ConnectionStatus.Connected)
+                            stringResource(R.string.directory_type_generic)
+                        else state.activeProfile?.directoryType?.name ?: "—",
+                    )
                     InfoLine(stringResource(R.string.dashboard_domain), state.activeProfile?.domain?.ifBlank { "—" } ?: "—")
                     if (status is ConnectionStatus.Connected) {
                         InfoLine(stringResource(R.string.dashboard_server), "${status.host}:${status.port}")
@@ -173,7 +184,7 @@ fun DashboardScreen(
                         }
                     }
                     InfoLine(stringResource(R.string.dashboard_base_dn), state.baseDn ?: "—")
-                    if (status is ConnectionStatus.Connected) {
+                    if (status is ConnectionStatus.Connected && state.isAd) {
                         InfoLine(stringResource(R.string.dashboard_domain_level), state.domainLevel ?: "—")
                         InfoLine(stringResource(R.string.dashboard_forest_level), state.forestLevel ?: "—")
                         InfoLine(stringResource(R.string.dashboard_dc_level), state.dcLevel ?: "—")
@@ -220,12 +231,14 @@ fun DashboardScreen(
                 subtitle = stringResource(R.string.dashboard_action_user_desc),
                 onClick = onSearchUser,
             )
-            ActionRow(
-                icon = { Icon(Icons.Filled.Computer, contentDescription = null) },
-                title = stringResource(R.string.dashboard_search_computer),
-                subtitle = stringResource(R.string.dashboard_action_computer_desc),
-                onClick = onSearchComputer,
-            )
+            if (state.isAd) {
+                ActionRow(
+                    icon = { Icon(Icons.Filled.Computer, contentDescription = null) },
+                    title = stringResource(R.string.dashboard_search_computer),
+                    subtitle = stringResource(R.string.dashboard_action_computer_desc),
+                    onClick = onSearchComputer,
+                )
+            }
             ActionRow(
                 icon = { Icon(Icons.AutoMirrored.Filled.ManageSearch, contentDescription = null) },
                 title = stringResource(R.string.nav_search),

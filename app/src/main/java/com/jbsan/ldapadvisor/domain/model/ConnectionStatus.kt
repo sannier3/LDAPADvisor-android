@@ -14,7 +14,12 @@ sealed class ConnectionStatus {
         val networkLost: Boolean = false,
         /** True when the profile uses TrustMode.INSECURE_NO_VERIFY. */
         val insecureTrust: Boolean = false,
-    ) : ConnectionStatus()
+        /** True when the session was authenticated with Kerberos/GSSAPI. */
+        val kerberosBound: Boolean = false,
+    ) : ConnectionStatus() {
+        /** Password ops allowed over TLS or Kerberos SASL. */
+        val allowsPasswordChannel: Boolean get() = tlsActive || kerberosBound
+    }
 
     data class Error(val error: AppError) : ConnectionStatus()
 }

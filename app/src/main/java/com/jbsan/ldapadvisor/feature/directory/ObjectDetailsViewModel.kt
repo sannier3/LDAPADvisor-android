@@ -22,10 +22,21 @@ data class ObjectEditForm(
     val displayName: String = "",
     val givenName: String = "",
     val sn: String = "",
+    val initials: String = "",
     val mail: String = "",
     val telephoneNumber: String = "",
+    val mobile: String = "",
+    val wwwHomePage: String = "",
     val title: String = "",
     val department: String = "",
+    val company: String = "",
+    val streetAddress: String = "",
+    val city: String = "",
+    val state: String = "",
+    val postalCode: String = "",
+    val country: String = "",
+    val countryName: String = "",
+    val countryCode: String = "",
     val description: String = "",
     val cn: String = "",
     val ou: String = "",
@@ -45,6 +56,7 @@ data class ObjectDetailsUiState(
     val saving: Boolean = false,
     val connected: Boolean = false,
     val readOnly: Boolean = true,
+    val isAd: Boolean = false,
     val favorite: Boolean = false,
     val busy: Boolean = false,
     val compareResult: String? = null,
@@ -57,6 +69,19 @@ class ObjectDetailsViewModel(
     private val _ui = MutableStateFlow(ObjectDetailsUiState())
     val uiState: StateFlow<ObjectDetailsUiState> = _ui.asStateFlow()
 
+    val ouPicker = OuTreePickerController(sessionManager, viewModelScope)
+
+    fun openMovePicker() {
+        val currentParent = _ui.value.dn.substringAfter(',', missingDelimiterValue = "").trim()
+        ouPicker.open(currentParent)
+    }
+
+    fun confirmMovePicker(dn: String) {
+        val superior = dn.trim()
+        ouPicker.dismiss()
+        if (superior.isNotBlank()) move(superior)
+    }
+
     fun load(dn: String) = viewModelScope.launch {
         val session = sessionManager.currentSession()
         _ui.value = ObjectDetailsUiState(
@@ -64,6 +89,7 @@ class ObjectDetailsViewModel(
             loading = true,
             connected = session?.isConnected() == true,
             readOnly = session?.readOnly != false,
+            isAd = session?.capabilities?.isActiveDirectory == true,
             favorite = favoritesRepository.isFavorite(dn),
         )
         if (session == null) {
@@ -77,7 +103,7 @@ class ObjectDetailsViewModel(
             onSuccess = { list ->
                 val entry = list.firstOrNull()
                 val classes = entry?.stringValues("objectClass").orEmpty()
-                val kind = DirectoryObjectClassifier.classify(classes)
+                val kind = DirectoryObjectClassifier.classify(classes, dn)
                 val display = DirectoryObjectClassifier.displayName(
                     dn = dn,
                     objectClasses = classes,
@@ -123,13 +149,28 @@ class ObjectDetailsViewModel(
         val mods = buildList {
             when (kind) {
                 DirectoryObjectKind.USER, DirectoryObjectKind.CONTACT -> {
+                    // displayName is independent of cn (RDN) and initials — do not auto-sync.
                     addReplace("givenName", f.givenName)
                     addReplace("sn", f.sn)
+                    addReplace("initials", f.initials)
                     addReplace("displayName", f.displayName)
                     addReplace("mail", f.mail)
                     addReplace("telephoneNumber", f.telephoneNumber)
+                    addReplace("mobile", f.mobile)
+                    addReplace("wWWHomePage", f.wwwHomePage)
                     addReplace("title", f.title)
                     addReplace("department", f.department)
+                    addReplace("company", f.company)
+                    addReplace("streetAddress", f.streetAddress)
+                    addReplace("street", f.streetAddress)
+                    addReplace("l", f.city)
+                    addReplace("st", f.state)
+                    addReplace("postalCode", f.postalCode)
+                    addReplace("c", f.country)
+                    if (session.capabilities.isActiveDirectory) {
+                        addReplace("co", f.countryName)
+                        addReplace("countryCode", f.countryCode)
+                    }
                     addReplace("description", f.description)
                 }
                 DirectoryObjectKind.GROUP -> {
@@ -314,10 +355,23 @@ class ObjectDetailsViewModel(
             displayName = firstString("displayName").orEmpty(),
             givenName = firstString("givenName").orEmpty(),
             sn = firstString("sn").orEmpty(),
+            initials = firstString("initials").orEmpty(),
             mail = firstString("mail").orEmpty(),
             telephoneNumber = firstString("telephoneNumber").orEmpty(),
+            mobile = firstString("mobile").orEmpty(),
+            wwwHomePage = firstString("wWWHomePage")
+                ?: firstString("labeledURI").orEmpty(),
             title = firstString("title").orEmpty(),
             department = firstString("department").orEmpty(),
+            company = firstString("company").orEmpty(),
+            streetAddress = firstString("streetAddress")
+                ?: firstString("street").orEmpty(),
+            city = firstString("l").orEmpty(),
+            state = firstString("st").orEmpty(),
+            postalCode = firstString("postalCode").orEmpty(),
+            country = firstString("c").orEmpty(),
+            countryName = firstString("co").orEmpty(),
+            countryCode = firstString("countryCode").orEmpty(),
             description = firstString("description").orEmpty(),
             cn = firstString("cn").orEmpty(),
             ou = firstString("ou").orEmpty(),

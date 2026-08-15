@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">LDAPADvisor</string>
     <string name="app_subtitle">Boîte à outils LDAP et Active Directory</string>
+    <string name="cd_app_logo">Logo LDAPADvisor</string>
 
     <string name="nav_dashboard">Tableau de bord</string>
     <string name="nav_directory">Annuaire</string>
@@ -30,11 +31,15 @@
     <string name="nav_create_user">Créer un utilisateur</string>
     <string name="nav_copy_user">Copier l\'utilisateur</string>
     <string name="copy_user_source">Source : %1$s</string>
-    <string name="copy_user_destination_ou">OU de destination (DN parent)</string>
-    <string name="copy_user_destination_ou_hint">DN LDAP de l\'OU où créer le nouvel utilisateur</string>
+    <string name="copy_user_destination_ou">OU de destination</string>
+    <string name="copy_user_destination_ou_hint">Choisissez un conteneur dans l\'arborescence</string>
     <string name="copy_user_copy_groups">Copier les appartenances aux groupes (%1$d)</string>
     <string name="copy_user_copy_primary">Copier le groupe principal : %1$s</string>
     <string name="copy_user_open_created">Ouvrir l\'utilisateur créé</string>
+    <string name="copy_user_ldap_hint">Crée un inetOrgPerson. Préférez un uid unique ; le mot de passe est optionnel (Password Modify en TLS si supporté).</string>
+    <string name="copy_user_uid_hint">Utilisé comme RDN (uid=…) s\'il est renseigné</string>
+    <string name="copy_user_ldap_password_optional">Mot de passe initial (optionnel)</string>
+    <string name="create_uid">uid</string>
     <string name="nav_create_group">Créer un groupe</string>
     <string name="nav_create_ou">Créer une OU</string>
     <string name="nav_back">Retour</string>
@@ -101,6 +106,7 @@
     <string name="status_unsupported">Non pris en charge</string>
 
     <string name="banner_plaintext">LDAP en clair — les identifiants peuvent être exposés</string>
+    <string name="banner_kerberos_bound">Bind Kerberos SASL actif — opérations mot de passe autorisées sans LDAPS</string>
     <string name="banner_insecure_trust">TLS sans vérification du certificat — risque MITM</string>
     <string name="banner_diagnostic_trust">TLS sans vérification du certificat — risque MITM</string>
     <string name="banner_session_disconnected">Aucune session LDAP active</string>
@@ -250,6 +256,7 @@
 
     <string name="users_title">Utilisateurs</string>
     <string name="users_query_hint">sAMAccountName, UPN, displayName ou mail</string>
+    <string name="users_query_hint_ldap">uid, cn, mail ou displayName</string>
     <string name="groups_title">Groupes</string>
     <string name="computers_title">Ordinateurs</string>
     <string name="ous_title">Unités d\'organisation</string>
@@ -284,7 +291,13 @@
     <string name="create_display_name">Nom d\'affichage</string>
     <string name="create_ou_name">Nom de l\'OU</string>
     <string name="create_description">Description</string>
-    <string name="create_parent_dn">DN parent</string>
+    <string name="create_parent_dn">Conteneur parent</string>
+    <string name="ou_picker_title">Sélectionner un conteneur</string>
+    <string name="ou_picker_hint">Développez l\'arborescence depuis le base DN et sélectionnez l\'OU ou le conteneur de destination.</string>
+    <string name="ou_picker_browse">Parcourir l\'arborescence…</string>
+    <string name="ou_picker_none">Aucun conteneur sélectionné</string>
+    <string name="ou_picker_selected">Sélection : %1$s</string>
+    <string name="object_move_pick_hint">Choisissez le conteneur de destination dans l\'arbre</string>
     <string name="create_group_scope">Portée du groupe</string>
     <string name="create_group_security">Groupe de sécurité</string>
     <string name="create_group_distribution">Groupe de distribution</string>
@@ -369,7 +382,7 @@
     <string name="create_user_disabled_note">Les nouveaux utilisateurs sont créés désactivés. Ils ne sont activés que si le mot de passe est défini avec succès et que vous l\'avez demandé.</string>
     <string name="create_need_connection">Connectez-vous d\'abord à un annuaire.</string>
     <string name="create_need_writable">Le profil est en lecture seule. Désactivez la lecture seule pour créer des objets.</string>
-    <string name="create_tls_hint">Les opérations de mot de passe nécessitent LDAPS ou StartTLS.</string>
+    <string name="create_tls_hint">Les opérations de mot de passe nécessitent LDAPS, StartTLS, ou un bind Kerberos SASL.</string>
     <string name="create_scope_global">Global</string>
     <string name="create_scope_domain_local">Local au domaine</string>
     <string name="create_scope_universal">Universel</string>
@@ -387,7 +400,7 @@
     <string name="profile_custom_ca_empty">Aucune CA personnalisée importée.</string>
     <string name="profile_ca_alias">Alias de la CA</string>
     <string name="object_new_rdn">Nouveau RDN (ex. CN=NouveauNom)</string>
-    <string name="object_new_superior">Nouveau DN supérieur</string>
+    <string name="object_new_superior">Nouveau conteneur parent</string>
     <string name="object_attr_name">Nom d\'attribut</string>
     <string name="object_attr_value">Valeur</string>
     <string name="object_attr_old_value">Valeur précédente (confirmation)</string>
@@ -438,6 +451,7 @@
     <string name="user_section_actions">Actions sur le compte</string>
     <string name="user_field_given_name">Prénom (givenName)</string>
     <string name="user_field_surname">Nom (sn)</string>
+    <string name="user_field_initials">Initiales</string>
     <string name="user_field_mail">E-mail (mail)</string>
     <string name="user_field_phone">Téléphone (telephoneNumber)</string>
     <string name="user_field_mobile">Mobile</string>
@@ -450,6 +464,8 @@
     <string name="user_field_state">État / région</string>
     <string name="user_field_postal">Code postal</string>
     <string name="user_field_country">Pays (c)</string>
+    <string name="user_field_country_name">Nom du pays (co)</string>
+    <string name="user_field_country_code">Code pays numérique (countryCode)</string>
     <string name="user_flag_must_change">L\'utilisateur doit changer le mot de passe à la prochaine connexion</string>
     <string name="user_flag_never_expires">Le mot de passe n\'expire jamais</string>
     <string name="user_action_save_contact">Enregistrer nom et contact</string>
@@ -460,7 +476,7 @@
     <string name="user_action_set_primary_group">Définir comme groupe principal</string>
     <string name="user_add_group_dn">DN du groupe à ajouter</string>
     <string name="user_add_group_hint">Collez le distinguishedName complet du groupe, puis ajoutez l\'appartenance.</string>
-    <string name="user_reset_requires_tls">La réinitialisation du mot de passe exige une session LDAPS ou StartTLS active.</string>
+    <string name="user_reset_requires_tls">La réinitialisation du mot de passe exige LDAPS, StartTLS, ou un bind Kerberos SASL.</string>
 
     <string name="type_domain">Domaine</string>
     <string name="type_ou">OU</string>

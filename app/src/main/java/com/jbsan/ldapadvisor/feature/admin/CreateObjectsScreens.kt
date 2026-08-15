@@ -28,12 +28,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jbsan.ldapadvisor.R
 import com.jbsan.ldapadvisor.core.ad.GroupTypeDecoder
 import com.jbsan.ldapadvisor.core.security.SecureWindow
+import com.jbsan.ldapadvisor.ui.components.OuTreePickerDialog
+import com.jbsan.ldapadvisor.ui.components.ParentContainerField
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun CreateUserScreen(viewModel: CreateObjectsViewModel) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val picker by viewModel.ouPicker.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         viewModel.refreshCaps()
@@ -48,11 +51,15 @@ fun CreateUserScreen(viewModel: CreateObjectsViewModel) {
     ) {
         Text(stringResource(R.string.nav_create_user), style = MaterialTheme.typography.headlineSmall)
         CapabilityBanner(ui)
-        OutlinedTextField(
-            ui.userForm.parentDn,
-            { viewModel.updateUser { f -> f.copy(parentDn = it) } },
-            label = { Text(stringResource(R.string.create_parent_dn)) },
-            modifier = ComposeModifier.fillMaxWidth(),
+        ParentContainerField(
+            label = stringResource(R.string.create_parent_dn),
+            selectedDn = ui.userForm.parentDn,
+            onBrowse = {
+                viewModel.openParentPicker(
+                    CreateObjectsViewModel.ParentTarget.USER,
+                    ui.userForm.parentDn,
+                )
+            },
         )
         OutlinedTextField(
             ui.userForm.cn,
@@ -104,6 +111,13 @@ fun CreateUserScreen(viewModel: CreateObjectsViewModel) {
             Text(stringResource(R.string.action_create))
         }
     }
+    OuTreePickerDialog(
+        state = picker,
+        onDismiss = { viewModel.ouPicker.dismiss() },
+        onToggle = { viewModel.ouPicker.toggle(it) },
+        onSelect = { viewModel.ouPicker.select(it) },
+        onConfirm = { viewModel.confirmParentPicker(it) },
+    )
 }
 
 @Composable
@@ -113,6 +127,7 @@ fun CopyUserScreen(
     onOpenCreated: (String) -> Unit = {},
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val picker by viewModel.ouPicker.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(sourceDn) {
         viewModel.loadUserForCopy(sourceDn)
@@ -126,22 +141,33 @@ fun CopyUserScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(stringResource(R.string.nav_copy_user), style = MaterialTheme.typography.headlineSmall)
-        CapabilityBanner(ui)
+        CapabilityBanner(ui, requireAd = false)
         Text(
             stringResource(R.string.copy_user_source, sourceDn),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (!ui.isAd) {
+            Text(
+                stringResource(R.string.copy_user_ldap_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (ui.loadingSource) {
             CircularProgressIndicator()
             return@Column
         }
-        OutlinedTextField(
-            ui.userForm.parentDn,
-            { viewModel.updateUser { f -> f.copy(parentDn = it) } },
-            label = { Text(stringResource(R.string.copy_user_destination_ou)) },
-            supportingText = { Text(stringResource(R.string.copy_user_destination_ou_hint)) },
-            modifier = ComposeModifier.fillMaxWidth(),
+        ParentContainerField(
+            label = stringResource(R.string.copy_user_destination_ou),
+            selectedDn = ui.userForm.parentDn,
+            hint = stringResource(R.string.copy_user_destination_ou_hint),
+            onBrowse = {
+                viewModel.openParentPicker(
+                    CreateObjectsViewModel.ParentTarget.USER,
+                    ui.userForm.parentDn,
+                )
+            },
         )
         OutlinedTextField(
             ui.userForm.cn,
@@ -149,18 +175,28 @@ fun CopyUserScreen(
             label = { Text(stringResource(R.string.create_cn)) },
             modifier = ComposeModifier.fillMaxWidth(),
         )
-        OutlinedTextField(
-            ui.userForm.sAMAccountName,
-            { viewModel.updateUser { f -> f.copy(sAMAccountName = it) } },
-            label = { Text(stringResource(R.string.create_sam)) },
-            modifier = ComposeModifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            ui.userForm.userPrincipalName,
-            { viewModel.updateUser { f -> f.copy(userPrincipalName = it) } },
-            label = { Text(stringResource(R.string.create_upn)) },
-            modifier = ComposeModifier.fillMaxWidth(),
-        )
+        if (ui.isAd) {
+            OutlinedTextField(
+                ui.userForm.sAMAccountName,
+                { viewModel.updateUser { f -> f.copy(sAMAccountName = it) } },
+                label = { Text(stringResource(R.string.create_sam)) },
+                modifier = ComposeModifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                ui.userForm.userPrincipalName,
+                { viewModel.updateUser { f -> f.copy(userPrincipalName = it) } },
+                label = { Text(stringResource(R.string.create_upn)) },
+                modifier = ComposeModifier.fillMaxWidth(),
+            )
+        } else {
+            OutlinedTextField(
+                ui.userForm.uid,
+                { viewModel.updateUser { f -> f.copy(uid = it) } },
+                label = { Text(stringResource(R.string.create_uid)) },
+                supportingText = { Text(stringResource(R.string.copy_user_uid_hint)) },
+                modifier = ComposeModifier.fillMaxWidth(),
+            )
+        }
         OutlinedTextField(
             ui.userForm.displayName,
             { viewModel.updateUser { f -> f.copy(displayName = it) } },
@@ -180,6 +216,12 @@ fun CopyUserScreen(
             modifier = ComposeModifier.fillMaxWidth(),
         )
         OutlinedTextField(
+            ui.userForm.initials,
+            { viewModel.updateUser { f -> f.copy(initials = it) } },
+            label = { Text(stringResource(R.string.user_field_initials)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
             ui.userForm.mail,
             { viewModel.updateUser { f -> f.copy(mail = it) } },
             label = { Text(stringResource(R.string.user_field_mail)) },
@@ -189,6 +231,18 @@ fun CopyUserScreen(
             ui.userForm.telephoneNumber,
             { viewModel.updateUser { f -> f.copy(telephoneNumber = it) } },
             label = { Text(stringResource(R.string.user_field_phone)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            ui.userForm.mobile,
+            { viewModel.updateUser { f -> f.copy(mobile = it) } },
+            label = { Text(stringResource(R.string.user_field_mobile)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            ui.userForm.wwwHomePage,
+            { viewModel.updateUser { f -> f.copy(wwwHomePage = it) } },
+            label = { Text(stringResource(R.string.user_field_website)) },
             modifier = ComposeModifier.fillMaxWidth(),
         )
         OutlinedTextField(
@@ -210,6 +264,37 @@ fun CopyUserScreen(
             modifier = ComposeModifier.fillMaxWidth(),
         )
         OutlinedTextField(
+            ui.userForm.streetAddress,
+            { viewModel.updateUser { f -> f.copy(streetAddress = it) } },
+            label = { Text(stringResource(R.string.user_field_street)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+            minLines = 2,
+        )
+        OutlinedTextField(
+            ui.userForm.city,
+            { viewModel.updateUser { f -> f.copy(city = it) } },
+            label = { Text(stringResource(R.string.user_field_city)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            ui.userForm.state,
+            { viewModel.updateUser { f -> f.copy(state = it) } },
+            label = { Text(stringResource(R.string.user_field_state)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            ui.userForm.postalCode,
+            { viewModel.updateUser { f -> f.copy(postalCode = it) } },
+            label = { Text(stringResource(R.string.user_field_postal)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            ui.userForm.country,
+            { viewModel.updateUser { f -> f.copy(country = it) } },
+            label = { Text(stringResource(R.string.user_field_country)) },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
             ui.userForm.description,
             { viewModel.updateUser { f -> f.copy(description = it) } },
             label = { Text(stringResource(R.string.create_description)) },
@@ -218,50 +303,63 @@ fun CopyUserScreen(
         OutlinedTextField(
             ui.userForm.initialPassword,
             { viewModel.updateUser { f -> f.copy(initialPassword = it) } },
-            label = { Text(stringResource(R.string.create_initial_password)) },
+            label = {
+                Text(
+                    stringResource(
+                        if (ui.isAd) R.string.create_initial_password
+                        else R.string.copy_user_ldap_password_optional,
+                    ),
+                )
+            },
             visualTransformation = PasswordVisualTransformation(),
             modifier = ComposeModifier.fillMaxWidth(),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = ui.userForm.enableAfterPassword,
-                onCheckedChange = { viewModel.updateUser { f -> f.copy(enableAfterPassword = it) } },
-            )
-            Text(stringResource(R.string.create_enable_after_password))
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = ui.userForm.copyGroups,
-                onCheckedChange = { viewModel.updateUser { f -> f.copy(copyGroups = it) } },
-            )
-            Text(stringResource(R.string.copy_user_copy_groups, ui.userForm.memberOf.size))
-        }
-        if (ui.userForm.memberOf.isNotEmpty() && ui.userForm.copyGroups) {
-            ui.userForm.memberOf.take(12).forEach { g ->
-                Text(g, style = MaterialTheme.typography.bodySmall)
-            }
-            if (ui.userForm.memberOf.size > 12) {
-                Text("… +${ui.userForm.memberOf.size - 12}", style = MaterialTheme.typography.bodySmall)
+        if (ui.isAd) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = ui.userForm.enableAfterPassword,
+                    onCheckedChange = { viewModel.updateUser { f -> f.copy(enableAfterPassword = it) } },
+                )
+                Text(stringResource(R.string.create_enable_after_password))
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = ui.userForm.copyPrimaryGroup,
-                onCheckedChange = { viewModel.updateUser { f -> f.copy(copyPrimaryGroup = it) } },
-            )
-            Text(
-                stringResource(
-                    R.string.copy_user_copy_primary,
-                    ui.userForm.primaryGroupLabel.ifBlank { ui.userForm.primaryGroupDn.ifBlank { "—" } },
-                ),
-            )
+        if (ui.userForm.memberOf.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = ui.userForm.copyGroups,
+                    onCheckedChange = { viewModel.updateUser { f -> f.copy(copyGroups = it) } },
+                )
+                Text(stringResource(R.string.copy_user_copy_groups, ui.userForm.memberOf.size))
+            }
+            if (ui.userForm.copyGroups) {
+                ui.userForm.memberOf.take(12).forEach { g ->
+                    Text(g, style = MaterialTheme.typography.bodySmall)
+                }
+                if (ui.userForm.memberOf.size > 12) {
+                    Text("… +${ui.userForm.memberOf.size - 12}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        if (ui.isAd && ui.userForm.primaryGroupDn.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = ui.userForm.copyPrimaryGroup,
+                    onCheckedChange = { viewModel.updateUser { f -> f.copy(copyPrimaryGroup = it) } },
+                )
+                Text(
+                    stringResource(
+                        R.string.copy_user_copy_primary,
+                        ui.userForm.primaryGroupLabel.ifBlank { ui.userForm.primaryGroupDn.ifBlank { "—" } },
+                    ),
+                )
+            }
         }
         if (ui.busy) CircularProgressIndicator()
         ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         ui.success?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Button(
             onClick = { viewModel.copyUser() },
-            enabled = ui.connected && ui.isAd && !ui.readOnly && !ui.busy && !ui.loadingSource,
+            enabled = ui.connected && !ui.readOnly && !ui.busy && !ui.loadingSource,
             modifier = ComposeModifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.action_copy_user))
@@ -275,23 +373,35 @@ fun CopyUserScreen(
             }
         }
     }
+    OuTreePickerDialog(
+        state = picker,
+        onDismiss = { viewModel.ouPicker.dismiss() },
+        onToggle = { viewModel.ouPicker.toggle(it) },
+        onSelect = { viewModel.ouPicker.select(it) },
+        onConfirm = { viewModel.confirmParentPicker(it) },
+    )
 }
 
 @Composable
 fun CreateGroupScreen(viewModel: CreateObjectsViewModel) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val picker by viewModel.ouPicker.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.refreshCaps() }
     Column(
         ComposeModifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(stringResource(R.string.nav_create_group), style = MaterialTheme.typography.headlineSmall)
-        CapabilityBanner(ui)
-        OutlinedTextField(
-            ui.groupForm.parentDn,
-            { viewModel.updateGroup { f -> f.copy(parentDn = it) } },
-            label = { Text(stringResource(R.string.create_parent_dn)) },
-            modifier = ComposeModifier.fillMaxWidth(),
+        CapabilityBanner(ui, requireAd = true)
+        ParentContainerField(
+            label = stringResource(R.string.create_parent_dn),
+            selectedDn = ui.groupForm.parentDn,
+            onBrowse = {
+                viewModel.openParentPicker(
+                    CreateObjectsViewModel.ParentTarget.GROUP,
+                    ui.groupForm.parentDn,
+                )
+            },
         )
         OutlinedTextField(
             ui.groupForm.cn,
@@ -342,29 +452,41 @@ fun CreateGroupScreen(viewModel: CreateObjectsViewModel) {
         ui.success?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Button(
             onClick = { viewModel.createGroup() },
-            enabled = ui.connected && !ui.readOnly && !ui.busy,
+            enabled = ui.connected && ui.isAd && !ui.readOnly && !ui.busy,
             modifier = ComposeModifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.action_create))
         }
     }
+    OuTreePickerDialog(
+        state = picker,
+        onDismiss = { viewModel.ouPicker.dismiss() },
+        onToggle = { viewModel.ouPicker.toggle(it) },
+        onSelect = { viewModel.ouPicker.select(it) },
+        onConfirm = { viewModel.confirmParentPicker(it) },
+    )
 }
 
 @Composable
 fun CreateOuScreen(viewModel: CreateObjectsViewModel) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val picker by viewModel.ouPicker.state.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.refreshCaps() }
     Column(
         ComposeModifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(stringResource(R.string.nav_create_ou), style = MaterialTheme.typography.headlineSmall)
-        CapabilityBanner(ui)
-        OutlinedTextField(
-            ui.ouForm.parentDn,
-            { viewModel.updateOu { f -> f.copy(parentDn = it) } },
-            label = { Text(stringResource(R.string.create_parent_dn)) },
-            modifier = ComposeModifier.fillMaxWidth(),
+        CapabilityBanner(ui, requireAd = false)
+        ParentContainerField(
+            label = stringResource(R.string.create_parent_dn),
+            selectedDn = ui.ouForm.parentDn,
+            onBrowse = {
+                viewModel.openParentPicker(
+                    CreateObjectsViewModel.ParentTarget.OU,
+                    ui.ouForm.parentDn,
+                )
+            },
         )
         OutlinedTextField(
             ui.ouForm.ouName,
@@ -389,14 +511,21 @@ fun CreateOuScreen(viewModel: CreateObjectsViewModel) {
             Text(stringResource(R.string.action_create))
         }
     }
+    OuTreePickerDialog(
+        state = picker,
+        onDismiss = { viewModel.ouPicker.dismiss() },
+        onToggle = { viewModel.ouPicker.toggle(it) },
+        onSelect = { viewModel.ouPicker.select(it) },
+        onConfirm = { viewModel.confirmParentPicker(it) },
+    )
 }
 
 @Composable
-private fun CapabilityBanner(ui: CreateObjectsUiState) {
+private fun CapabilityBanner(ui: CreateObjectsUiState, requireAd: Boolean = true) {
     when {
         !ui.connected -> Text(stringResource(R.string.create_need_connection), color = MaterialTheme.colorScheme.error)
         ui.readOnly -> Text(stringResource(R.string.create_need_writable), color = MaterialTheme.colorScheme.error)
-        !ui.isAd -> Text(stringResource(R.string.ad_only_feature), color = MaterialTheme.colorScheme.error)
-        !ui.tlsActive -> Text(stringResource(R.string.create_tls_hint), style = MaterialTheme.typography.bodySmall)
+        requireAd && !ui.isAd -> Text(stringResource(R.string.ad_only_feature), color = MaterialTheme.colorScheme.error)
+        !ui.allowsPasswordChannel -> Text(stringResource(R.string.create_tls_hint), style = MaterialTheme.typography.bodySmall)
     }
 }

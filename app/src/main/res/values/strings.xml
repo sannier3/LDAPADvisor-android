@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">LDAPADvisor</string>
     <string name="app_subtitle">LDAP &amp; Active Directory Toolkit</string>
+    <string name="cd_app_logo">LDAPADvisor logo</string>
 
     <!-- Navigation -->
     <string name="nav_dashboard">Dashboard</string>
@@ -31,11 +32,15 @@
     <string name="nav_create_user">Create user</string>
     <string name="nav_copy_user">Copy user</string>
     <string name="copy_user_source">Source: %1$s</string>
-    <string name="copy_user_destination_ou">Destination OU (parent DN)</string>
-    <string name="copy_user_destination_ou_hint">LDAP DN of the OU where the new user will be created</string>
+    <string name="copy_user_destination_ou">Destination OU</string>
+    <string name="copy_user_destination_ou_hint">Pick a container from the directory tree</string>
     <string name="copy_user_copy_groups">Copy group memberships (%1$d)</string>
     <string name="copy_user_copy_primary">Copy primary group: %1$s</string>
     <string name="copy_user_open_created">Open created user</string>
+    <string name="copy_user_ldap_hint">Creates an inetOrgPerson. Prefer a unique uid; password is optional (Password Modify over TLS when supported).</string>
+    <string name="copy_user_uid_hint">Used as RDN (uid=…) when set</string>
+    <string name="copy_user_ldap_password_optional">Initial password (optional)</string>
+    <string name="create_uid">uid</string>
     <string name="nav_create_group">Create group</string>
     <string name="nav_create_ou">Create OU</string>
     <string name="nav_back">Back</string>
@@ -105,6 +110,7 @@
 
     <!-- Safety banners -->
     <string name="banner_plaintext">Plaintext LDAP — credentials may be exposed</string>
+    <string name="banner_kerberos_bound">Kerberos SASL bind active — password operations allowed without LDAPS</string>
     <string name="banner_insecure_trust">TLS without certificate verification — MITM risk</string>
     <string name="banner_diagnostic_trust">TLS without certificate verification — MITM risk</string>
     <string name="banner_session_disconnected">No active LDAP session</string>
@@ -258,6 +264,7 @@
     <!-- Users / Groups / Computers -->
     <string name="users_title">Users</string>
     <string name="users_query_hint">sAMAccountName, UPN, displayName, or mail</string>
+    <string name="users_query_hint_ldap">uid, cn, mail, or displayName</string>
     <string name="groups_title">Groups</string>
     <string name="computers_title">Computers</string>
     <string name="ous_title">Organizational Units</string>
@@ -292,7 +299,13 @@
     <string name="create_display_name">Display name</string>
     <string name="create_ou_name">OU name</string>
     <string name="create_description">Description</string>
-    <string name="create_parent_dn">Parent DN</string>
+    <string name="create_parent_dn">Parent container</string>
+    <string name="ou_picker_title">Select container</string>
+    <string name="ou_picker_hint">Expand the tree from the base DN and select the destination OU or container.</string>
+    <string name="ou_picker_browse">Browse directory tree…</string>
+    <string name="ou_picker_none">No container selected</string>
+    <string name="ou_picker_selected">Selected: %1$s</string>
+    <string name="object_move_pick_hint">Choose the destination container in the tree</string>
     <string name="create_group_scope">Group scope</string>
     <string name="create_group_security">Security group</string>
     <string name="create_group_distribution">Distribution group</string>
@@ -379,7 +392,7 @@
     <string name="create_user_disabled_note">New users are created disabled. They are enabled only if a password is set successfully and you opted in.</string>
     <string name="create_need_connection">Connect to a directory first.</string>
     <string name="create_need_writable">Profile is read-only. Disable read-only to create objects.</string>
-    <string name="create_tls_hint">Password operations require LDAPS or StartTLS.</string>
+    <string name="create_tls_hint">Password operations require LDAPS, StartTLS, or a Kerberos SASL bind.</string>
     <string name="create_scope_global">Global</string>
     <string name="create_scope_domain_local">Domain local</string>
     <string name="create_scope_universal">Universal</string>
@@ -397,7 +410,7 @@
     <string name="profile_custom_ca_empty">No custom CAs imported yet.</string>
     <string name="profile_ca_alias">CA alias</string>
     <string name="object_new_rdn">New RDN (e.g. CN=NewName)</string>
-    <string name="object_new_superior">New superior DN</string>
+    <string name="object_new_superior">New parent container</string>
     <string name="object_attr_name">Attribute name</string>
     <string name="object_attr_value">Value</string>
     <string name="object_attr_old_value">Previous value (for confirmation)</string>
@@ -450,6 +463,7 @@
     <string name="user_section_actions">Account actions</string>
     <string name="user_field_given_name">First name (givenName)</string>
     <string name="user_field_surname">Last name (sn)</string>
+    <string name="user_field_initials">Initials</string>
     <string name="user_field_mail">Email (mail)</string>
     <string name="user_field_phone">Phone (telephoneNumber)</string>
     <string name="user_field_mobile">Mobile</string>
@@ -462,6 +476,8 @@
     <string name="user_field_state">State / province</string>
     <string name="user_field_postal">Postal code</string>
     <string name="user_field_country">Country (c)</string>
+    <string name="user_field_country_name">Country name (co)</string>
+    <string name="user_field_country_code">Country code (countryCode)</string>
     <string name="user_flag_must_change">User must change password at next logon</string>
     <string name="user_flag_never_expires">Password never expires</string>
     <string name="user_action_save_contact">Save name &amp; contact</string>
@@ -472,7 +488,7 @@
     <string name="user_action_set_primary_group">Set as primary group</string>
     <string name="user_add_group_dn">Group DN to add</string>
     <string name="user_add_group_hint">Paste the full group distinguishedName, then add membership.</string>
-    <string name="user_reset_requires_tls">Password reset requires an active LDAPS or StartTLS session.</string>
+    <string name="user_reset_requires_tls">Password reset requires LDAPS, StartTLS, or a Kerberos SASL bind.</string>
 
     <!-- Object types -->
     <string name="type_domain">Domain</string>

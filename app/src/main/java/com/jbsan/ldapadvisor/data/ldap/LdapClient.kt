@@ -49,6 +49,21 @@ class LdapClient(
     val port: Int get() = profile.port
     val profileId: String get() = profile.id
 
+    @Volatile
+    private var kerberosBound: Boolean = false
+
+    /** True after a successful Kerberos/GSSAPI SASL bind on this connection. */
+    val isKerberosBound: Boolean get() = kerberosBound
+
+    /**
+     * Channel considered acceptable for password set/reset:
+     * LDAPS/StartTLS, or Kerberos SASL bind (authenticated session).
+     */
+    val allowsPasswordChannel: Boolean
+        get() = tlsActive ||
+            profile.securityMode == SecurityMode.LDAPS ||
+            kerberosBound
+
     fun isConnected(): Boolean = connection.isConnected
 
     /**
@@ -74,6 +89,7 @@ class LdapClient(
         try {
             connection.bind(ANONYMOUSBindRequest())
             boundAs = null
+            kerberosBound = false
             BindOutcome.Success(null)
         } catch (e: Exception) {
             BindOutcome.Failure(LdapErrorMapper.map(e))
@@ -107,6 +123,7 @@ class LdapClient(
             val request = SimpleBindRequest(bindDn, String(password))
             connection.bind(request)
             boundAs = bindDn
+            kerberosBound = false
             BindOutcome.Success(bindDn)
         } catch (e: Exception) {
             BindOutcome.Failure(LdapErrorMapper.map(e))
@@ -151,6 +168,7 @@ class LdapClient(
                     )
                     if (result.resultCode == ResultCode.SUCCESS) {
                         boundAs = principalLabel
+                        kerberosBound = true
                         logger?.debug("LdapClient", "SASL bind success mech=$mech as=$principalLabel")
                         return@withContext BindOutcome.Success(principalLabel)
                     }
@@ -303,6 +321,7 @@ class LdapClient(
             )
             if (finalResult.resultCode == ResultCode.SUCCESS) {
                 boundAs = principalLabel
+                kerberosBound = true
                 logger?.debug(
                     "LdapClient",
                     "SASL bind success after security-layer nego mech=$mech as=$principalLabel",
@@ -497,12 +516,12 @@ class LdapClient(
     }
 
     /**
-     * AD unicodePwd password reset — only when LDAPS or StartTLS is active.
+     * AD unicodePwd password reset — requires LDAPS/StartTLS or a Kerberos SASL bind.
      */
     suspend fun resetAdPassword(userDn: String, newPassword: CharArray): Result<Unit> =
         withContext(Dispatchers.IO) {
             enforceWritable().getOrElse { return@withContext Result.failure(it) }
-            if (!secureChannelActive()) {
+            if (!allowsPasswordChannel) {
                 return@withContext Result.failure(AppError.SecureChannelRequired())
             }
             try {
@@ -523,7 +542,7 @@ class LdapClient(
 
     /**
      * RFC 3062 Password Modify extended operation (OID 1.3.6.1.4.1.4203.1.11.1).
-     * Requires a secure channel. Never logs password values.
+     * Requires LDAPS/StartTLS or Kerberos SASL. Never logs password values.
      */
     suspend fun changePasswordPasswordModify(
         userIdentity: String?,
@@ -531,7 +550,7 @@ class LdapClient(
         newPassword: CharArray,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         enforceWritable().getOrElse { return@withContext Result.failure(it) }
-        if (!secureChannelActive()) {
+        if (!allowsPasswordChannel) {
             return@withContext Result.failure(AppError.SecureChannelRequired())
         }
         try {
@@ -557,8 +576,7 @@ class LdapClient(
         }
     }
 
-    private fun secureChannelActive(): Boolean =
-        tlsActive || profile.securityMode == SecurityMode.LDAPS
+    private fun secureChannelActive(): Boolean = allowsPasswordChannel
 
     suspend fun unlockAdUser(userDn: String): Result<Unit> =
         modify(
@@ -686,6 +704,8 @@ class LdapClient(
     }
 
     fun disconnect() {
+        kerberosBound = false
+        boundAs = null
         try {
             connection.close()
         } catch (e: Exception) {

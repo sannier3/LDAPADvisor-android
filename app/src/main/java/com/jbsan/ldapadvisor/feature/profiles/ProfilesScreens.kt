@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jbsan.ldapadvisor.R
 import com.jbsan.ldapadvisor.core.security.SecureWindow
 import com.jbsan.ldapadvisor.domain.model.ConnectionProfile
+import com.jbsan.ldapadvisor.ui.components.AppLogoMark
 import com.jbsan.ldapadvisor.ui.components.EmptyState
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
@@ -108,11 +109,17 @@ fun ProfilesScreen(
                 )
             }
             if (profiles.isEmpty()) {
-                EmptyState(
-                    title = stringResource(R.string.profiles_empty),
-                    body = stringResource(R.string.profiles_empty_hint),
-                    modifier = ComposeModifier.fillMaxSize(),
-                )
+                Column(
+                    ComposeModifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AppLogoMark(size = 96.dp)
+                    EmptyState(
+                        title = stringResource(R.string.profiles_empty),
+                        body = stringResource(R.string.profiles_empty_hint),
+                    )
+                }
             } else {
                 LazyColumn(modifier = ComposeModifier.fillMaxSize()) {
                     items(profiles, key = { it.id }) { profile ->

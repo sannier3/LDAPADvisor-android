@@ -13,6 +13,8 @@ class LdapSession internal constructor(
     val port: Int get() = client.port
     val securityMode: SecurityMode get() = client.securityMode
     val tlsActive: Boolean get() = client.isTlsActive
+    val kerberosBound: Boolean get() = client.isKerberosBound
+    val allowsPasswordChannel: Boolean get() = client.allowsPasswordChannel
     val boundAs: String? get() = client.boundIdentity()
     val readOnly: Boolean get() = client.readOnly
 

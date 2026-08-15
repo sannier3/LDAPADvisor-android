@@ -19,6 +19,7 @@ data class DashboardUiState(
     val activeProfile: ConnectionProfile? = null,
     val connectionStatus: ConnectionStatus = ConnectionStatus.Disconnected,
     val networkAvailable: Boolean = true,
+    val isAd: Boolean = false,
     val domainLevel: String? = null,
     val forestLevel: String? = null,
     val dcLevel: String? = null,
@@ -42,6 +43,7 @@ class DashboardViewModel(
         val active = profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
         val session = sessionManager.currentSession()
         val root = session?.rootDse
+        val isAd = session?.capabilities?.isActiveDirectory == true
         @Suppress("UNUSED_VARIABLE")
         val last = runs.firstOrNull()?.let { null as DiagnosticRun? }
         DashboardUiState(
@@ -49,11 +51,13 @@ class DashboardViewModel(
             activeProfile = active,
             connectionStatus = status,
             networkAvailable = networkAvailable,
-            domainLevel = FunctionalLevelDecoder.label(root?.domainFunctionality),
-            forestLevel = FunctionalLevelDecoder.label(root?.forestFunctionality),
-            dcLevel = FunctionalLevelDecoder.label(root?.domainControllerFunctionality),
-            gcReady = root?.isGlobalCatalogReady,
-            baseDn = active?.baseDn?.ifBlank { root?.defaultNamingContext },
+            isAd = isAd,
+            domainLevel = if (isAd) FunctionalLevelDecoder.label(root?.domainFunctionality) else null,
+            forestLevel = if (isAd) FunctionalLevelDecoder.label(root?.forestFunctionality) else null,
+            dcLevel = if (isAd) FunctionalLevelDecoder.label(root?.domainControllerFunctionality) else null,
+            gcReady = if (isAd) root?.isGlobalCatalogReady else null,
+            baseDn = active?.baseDn?.ifBlank { root?.defaultNamingContext }
+                ?: session?.capabilities?.defaultNamingContext,
             lastRun = last,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DashboardUiState())

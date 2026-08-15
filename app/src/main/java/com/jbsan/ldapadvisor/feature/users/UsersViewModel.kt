@@ -7,7 +7,7 @@ import com.jbsan.ldapadvisor.core.ad.FileTimeConverter
 import com.jbsan.ldapadvisor.core.ad.GuidDecoder
 import com.jbsan.ldapadvisor.core.ad.SidDecoder
 import com.jbsan.ldapadvisor.core.ad.UserAccountControl
-import com.jbsan.ldapadvisor.core.util.LdapFilterEscaper
+import com.jbsan.ldapadvisor.core.ldap.LdapSearchPresets
 import com.jbsan.ldapadvisor.data.ldap.LdapEntryData
 import com.jbsan.ldapadvisor.data.ldap.LdapSearchRequest
 import com.jbsan.ldapadvisor.data.ldap.SearchScopeMode
@@ -58,10 +58,6 @@ class UsersViewModel(private val sessionManager: SessionManager) : ViewModel() {
         }
         val isAd = session.capabilities.isActiveDirectory
         val canPwdMod = session.capabilities.supportsPasswordModify
-        if (!isAd && !canPwdMod) {
-            _ui.value = _ui.value.copy(isAd = false, supportsPasswordModify = false, error = null)
-            return@launch
-        }
         _ui.value = _ui.value.copy(
             loading = true,
             error = null,
@@ -69,18 +65,17 @@ class UsersViewModel(private val sessionManager: SessionManager) : ViewModel() {
             supportsPasswordModify = canPwdMod,
         )
         val base = session.capabilities.defaultNamingContext.orEmpty()
+        if (base.isBlank()) {
+            _ui.value = _ui.value.copy(
+                loading = false,
+                error = "No base DN — set Base DN on the profile or check Root DSE namingContexts",
+            )
+            return@launch
+        }
         val filter = when {
             isAd && _ui.value.query.isBlank() -> AdSearchPresets.ALL_USERS
             isAd -> AdSearchPresets.userQuery(_ui.value.query)
-            else -> {
-                val q = LdapFilterEscaper.escapeFilterValue(_ui.value.query.trim())
-                if (q.isBlank()) {
-                    "(|(objectClass=inetOrgPerson)(objectClass=person))"
-                } else {
-                    "(&(|(objectClass=inetOrgPerson)(objectClass=person))" +
-                        "(|(uid=$q)(cn=$q)(mail=$q)))"
-                }
-            }
+            else -> LdapSearchPresets.userQuery(_ui.value.query)
         }
         val attrs = if (isAd) {
             arrayOf(

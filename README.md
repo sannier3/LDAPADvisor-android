@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo-ldapadvisor-text.png" alt="LDAPADvisor" width="360" />
+</p>
+
 # LDAPADvisor Android
 
 Native Android toolkit for LDAP and Microsoft Active Directory administration, exploration and diagnostics.
@@ -15,7 +19,7 @@ LDAPADvisor Android is a native Android application for:
 - Active Directory administrators
 - LDAP administrators
 
-Current builds (`0.1.1`) include working LDAP/LDAPS/StartTLS connectivity, embedded Kerberos SASL GSSAPI bind against AD, AD discovery, directory browsing, selected AD administration actions, diagnostics, advisor findings, and report export. Treat results carefully: the project is still early, and some flows remain limited or unsupported (see [docs/implementation-status.md](docs/implementation-status.md) and [docs/limitations.md](docs/limitations.md)).
+Current builds (`0.1.2`) include working LDAP/LDAPS/StartTLS connectivity, embedded Kerberos SASL GSSAPI bind against AD, AD discovery, directory browsing, selected AD administration actions, diagnostics, advisor findings, and report export. Treat results carefully: the project is still early, and some flows remain limited or unsupported (see [docs/implementation-status.md](docs/implementation-status.md) and [docs/limitations.md](docs/limitations.md)).
 
 ## Planned Features
 
@@ -49,7 +53,7 @@ Object creation UI (create user/group/OU) is **limited** (message screens only) 
 
 - Android 7.0 (API 24) or later
 - Native Kotlin application
-- `compileSdk` / `targetSdk` 37 (`versionName` `0.1.1`)
+- `compileSdk` / `targetSdk` 37 (`versionName` `0.1.2`)
 
 ## Technology
 
@@ -72,7 +76,7 @@ Currently used in this repository:
 
 ## Project Status
 
-**Early development** (`0.1.1`)
+**Early development** (`0.1.2`)
 
 Core LDAP/AD, diagnostics, advisor, and reporting paths are implemented in-tree. No stable production release is announced. See [docs/implementation-status.md](docs/implementation-status.md).
 

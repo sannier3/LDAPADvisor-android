@@ -57,6 +57,7 @@ import com.jbsan.ldapadvisor.feature.reports.ReportsViewModel
 import com.jbsan.ldapadvisor.feature.search.SearchViewModel
 import com.jbsan.ldapadvisor.feature.settings.SettingsViewModel
 import com.jbsan.ldapadvisor.feature.users.UsersViewModel
+import com.jbsan.ldapadvisor.ui.components.AppBrandImage
 import com.jbsan.ldapadvisor.ui.components.EmptyState
 import com.jbsan.ldapadvisor.ui.components.StatusChip
 
@@ -150,54 +151,52 @@ fun UsersScreen(
         ComposeModifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        when {
-            !ui.isAd && !ui.supportsPasswordModify -> {
-                Text(stringResource(R.string.ad_only_feature))
-                Button(onClick = { viewModel.refreshCaps() }) { Text(stringResource(R.string.action_refresh)) }
-            }
-            else -> {
-                if (ui.isAd) {
-                    Button(onClick = onCreate) { Text(stringResource(R.string.nav_create_user)) }
-                }
-                OutlinedTextField(
-                    value = ui.query,
-                    onValueChange = { viewModel.setQuery(it) },
-                    label = { Text(stringResource(R.string.users_query_hint)) },
-                    modifier = ComposeModifier.fillMaxWidth(),
-                )
-                Button(onClick = { viewModel.search() }) { Text(stringResource(R.string.action_search)) }
-                if (ui.loading) CircularProgressIndicator()
+        if (ui.isAd) {
+            Button(onClick = onCreate) { Text(stringResource(R.string.nav_create_user)) }
+        }
+        OutlinedTextField(
+            value = ui.query,
+            onValueChange = { viewModel.setQuery(it) },
+            label = {
                 Text(
-                    stringResource(R.string.dashboard_action_user_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(
+                        if (ui.isAd) R.string.users_query_hint else R.string.users_query_hint_ldap,
+                    ),
                 )
-                LazyColumn(ComposeModifier.weight(1f)) {
-                    items(ui.results, key = { it.dn }) { e ->
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    e.firstString("displayName")
-                                        ?: e.firstString("sAMAccountName")
-                                        ?: e.firstString("uid")
-                                        ?: e.firstString("cn")
-                                        ?: e.dn,
-                                )
-                            },
-                            supportingContent = {
-                                Text(e.firstString("userPrincipalName") ?: e.firstString("mail") ?: e.dn)
-                            },
-                            trailingContent = {
-                                Text(
-                                    stringResource(R.string.action_open),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            },
-                            modifier = ComposeModifier.clickable { onOpen(e.dn) },
+            },
+            modifier = ComposeModifier.fillMaxWidth(),
+        )
+        Button(onClick = { viewModel.search() }) { Text(stringResource(R.string.action_search)) }
+        if (ui.loading) CircularProgressIndicator()
+        Text(
+            stringResource(R.string.dashboard_action_user_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        LazyColumn(ComposeModifier.weight(1f)) {
+            items(ui.results, key = { it.dn }) { e ->
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            e.firstString("displayName")
+                                ?: e.firstString("sAMAccountName")
+                                ?: e.firstString("uid")
+                                ?: e.firstString("cn")
+                                ?: e.dn,
                         )
-                    }
-                }
+                    },
+                    supportingContent = {
+                        Text(e.firstString("userPrincipalName") ?: e.firstString("mail") ?: e.dn)
+                    },
+                    trailingContent = {
+                        Text(
+                            stringResource(R.string.action_open),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    },
+                    modifier = ComposeModifier.clickable { onOpen(e.dn) },
+                )
             }
         }
         ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -209,18 +208,22 @@ fun GroupsScreen(viewModel: GroupsViewModel, onCreate: () -> Unit = {}) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.refreshCaps() }
     Column(ComposeModifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (!ui.isAd) {
-            Text(stringResource(R.string.ad_only_feature))
-            Button(onClick = { viewModel.refreshCaps(); viewModel.search() }) { Text(stringResource(R.string.action_refresh)) }
+        if (ui.isAd) {
+            Button(onClick = onCreate) { Text(stringResource(R.string.nav_create_group)) }
         }
-        Button(onClick = onCreate) { Text(stringResource(R.string.nav_create_group)) }
         OutlinedTextField(ui.query, { viewModel.setQuery(it) }, label = { Text(stringResource(R.string.groups_title)) }, modifier = ComposeModifier.fillMaxWidth())
         Button(onClick = { viewModel.search() }) { Text(stringResource(R.string.action_search)) }
+        if (ui.loading) CircularProgressIndicator()
         LazyColumn(ComposeModifier.weight(1f)) {
             items(ui.results, key = { it.dn }) { e ->
                 ListItem(
                     headlineContent = { Text(e.firstString("cn") ?: e.dn) },
-                    supportingContent = { Text(viewModel.groupTypeLabel(e)) },
+                    supportingContent = {
+                        Text(
+                            if (ui.isAd) viewModel.groupTypeLabel(e)
+                            else (e.firstString("description") ?: e.dn),
+                        )
+                    },
                     modifier = ComposeModifier.clickable { viewModel.open(e.dn) },
                 )
             }
@@ -233,19 +236,21 @@ fun GroupsScreen(viewModel: GroupsViewModel, onCreate: () -> Unit = {}) {
                 ListItem(
                     headlineContent = { Text(m) },
                     trailingContent = {
-                        if (!ui.readOnly) {
+                        if (!ui.readOnly && ui.isAd) {
                             TextButton(onClick = { pendingMember = "remove" to m }) { Text(stringResource(R.string.action_remove)) }
                         }
                     },
                 )
             }
-            if (!ui.readOnly) {
+            if (!ui.readOnly && ui.isAd) {
                 var memberDn by remember { mutableStateOf("") }
                 OutlinedTextField(memberDn, { memberDn = it }, label = { Text(stringResource(R.string.group_add_member)) }, modifier = ComposeModifier.fillMaxWidth())
                 Button(onClick = { if (memberDn.isNotBlank()) pendingMember = "add" to memberDn }) { Text(stringResource(R.string.action_add)) }
             }
-            OutlinedButton(onClick = { viewModel.loadNested() }) { Text(stringResource(R.string.group_nested)) }
-            ui.nested.forEach { n -> Text(n.dn, style = MaterialTheme.typography.bodySmall) }
+            if (ui.isAd) {
+                OutlinedButton(onClick = { viewModel.loadNested() }) { Text(stringResource(R.string.group_nested)) }
+                ui.nested.forEach { n -> Text(n.dn, style = MaterialTheme.typography.bodySmall) }
+            }
             pendingMember?.let { (op, member) ->
                 AlertDialog(
                     onDismissRequest = { pendingMember = null },
@@ -266,6 +271,7 @@ fun GroupsScreen(viewModel: GroupsViewModel, onCreate: () -> Unit = {}) {
                 )
             }
         }
+        ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
 
@@ -771,9 +777,24 @@ private fun SettingsNavButton(label: String, onClick: () -> Unit) {
 
 @Composable
 fun AboutScreen(onLicenses: () -> Unit = {}) {
-    Column(ComposeModifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(R.string.app_subtitle))
+    Column(
+        ComposeModifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        AppBrandImage(
+            drawableRes = R.drawable.logo_wordmark,
+            modifier = ComposeModifier.fillMaxWidth(0.85f),
+            height = 160.dp,
+        )
+        Text(
+            stringResource(R.string.app_subtitle),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         Text(stringResource(R.string.about_license))
         Text(stringResource(R.string.about_repo))
@@ -933,8 +954,13 @@ fun ConnectionScreen(
         when (val s = status) {
             is com.jbsan.ldapadvisor.domain.model.ConnectionStatus.Connected -> {
                 Text(stringResource(R.string.banner_session_connected, s.host, s.port, s.securityMode.name))
-                if (!s.tlsActive) {
+                if (!s.tlsActive && !s.kerberosBound) {
                     Text(stringResource(R.string.banner_plaintext), color = MaterialTheme.colorScheme.error)
+                } else if (s.kerberosBound && !s.tlsActive) {
+                    Text(
+                        stringResource(R.string.banner_kerberos_bound),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
                 if (s.insecureTrust) {
                     Text(stringResource(R.string.banner_insecure_trust), color = MaterialTheme.colorScheme.error)
@@ -1006,29 +1032,31 @@ fun OrganizationalUnitsScreen(
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
         viewModel.prepare()
-        if (ui.isAd || viewModel.uiState.value.isAd) {
-            viewModel.applyPreset(com.jbsan.ldapadvisor.core.ad.AdSearchPresets.OUS)
-            viewModel.search()
+        val ouFilter = if (viewModel.uiState.value.isAd) {
+            com.jbsan.ldapadvisor.core.ad.AdSearchPresets.OUS
+        } else {
+            com.jbsan.ldapadvisor.core.ldap.LdapSearchPresets.ALL_OUS
         }
+        viewModel.applyPreset(ouFilter)
+        viewModel.search()
     }
     Column(
         ComposeModifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (!ui.isAd) {
-            Text(stringResource(R.string.ad_only_feature))
-            Button(onClick = {
-                viewModel.prepare()
-                viewModel.applyPreset(com.jbsan.ldapadvisor.core.ad.AdSearchPresets.OUS)
-                viewModel.search()
-            }) { Text(stringResource(R.string.action_refresh)) }
-        } else {
+        if (ui.isAd) {
             Button(onClick = onCreate) { Text(stringResource(R.string.nav_create_ou)) }
-            Button(onClick = {
-                viewModel.applyPreset(com.jbsan.ldapadvisor.core.ad.AdSearchPresets.OUS)
-                viewModel.search()
-            }) { Text(stringResource(R.string.action_search)) }
         }
+        Button(onClick = {
+            viewModel.applyPreset(
+                if (ui.isAd) {
+                    com.jbsan.ldapadvisor.core.ad.AdSearchPresets.OUS
+                } else {
+                    com.jbsan.ldapadvisor.core.ldap.LdapSearchPresets.ALL_OUS
+                },
+            )
+            viewModel.search()
+        }) { Text(stringResource(R.string.action_search)) }
         if (ui.loading) CircularProgressIndicator()
         LazyColumn(ComposeModifier.weight(1f)) {
             items(ui.results, key = { it.dn }) { e ->
@@ -1039,6 +1067,7 @@ fun OrganizationalUnitsScreen(
                 )
             }
         }
+        ui.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     }
 }
 

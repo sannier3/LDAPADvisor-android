@@ -50,6 +50,7 @@ import com.jbsan.ldapadvisor.core.ad.DirectoryObjectKind
 import com.jbsan.ldapadvisor.core.util.DnUtils
 import com.jbsan.ldapadvisor.data.ldap.LdapModificationSpec
 import com.jbsan.ldapadvisor.ui.ComposeModifier
+import com.jbsan.ldapadvisor.ui.components.OuTreePickerDialog
 import com.jbsan.ldapadvisor.ui.components.SessionBanner
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -61,12 +62,12 @@ fun ObjectDetailsScreen(
     onCopyUser: ((String) -> Unit)? = null,
 ) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
+    val picker by viewModel.ouPicker.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(dn) { viewModel.load(dn) }
 
     var showDelete by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
-    var showMove by remember { mutableStateOf(false) }
     var showModify by remember { mutableStateOf(false) }
     var showCompare by remember { mutableStateOf(false) }
     var pendingConfirm by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -171,7 +172,9 @@ fun ObjectDetailsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(onClick = { showRename = true }) { Text(stringResource(R.string.action_rename)) }
-                OutlinedButton(onClick = { showMove = true }) { Text(stringResource(R.string.action_move)) }
+                OutlinedButton(onClick = { viewModel.openMovePicker() }) {
+                    Text(stringResource(R.string.action_move))
+                }
                 OutlinedButton(onClick = { showModify = true }) { Text(stringResource(R.string.action_modify_attr)) }
                 OutlinedButton(onClick = { showDelete = true }) { Text(stringResource(R.string.action_delete)) }
             }
@@ -266,31 +269,19 @@ fun ObjectDetailsScreen(
             dismissButton = { TextButton(onClick = { showRename = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
-    if (showMove) {
-        var superior by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showMove = false },
-            title = { Text(stringResource(R.string.action_move)) },
-            text = {
-                OutlinedTextField(
-                    superior,
-                    { superior = it },
-                    label = { Text(stringResource(R.string.object_new_superior)) },
-                    modifier = ComposeModifier.fillMaxWidth(),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmBody = "Target: ${ui.dn}\nOperation: MOVE → $superior"
-                    pendingConfirm = {
-                        viewModel.move(superior)
-                        showMove = false
-                    }
-                }) { Text(stringResource(R.string.action_confirm)) }
-            },
-            dismissButton = { TextButton(onClick = { showMove = false }) { Text(stringResource(R.string.action_cancel)) } },
-        )
-    }
+    val movePickHint = stringResource(R.string.object_move_pick_hint)
+    OuTreePickerDialog(
+        state = picker,
+        title = stringResource(R.string.action_move),
+        onDismiss = { viewModel.ouPicker.dismiss() },
+        onToggle = { viewModel.ouPicker.toggle(it) },
+        onSelect = { viewModel.ouPicker.select(it) },
+        onConfirm = { selected ->
+            viewModel.ouPicker.dismiss()
+            confirmBody = "Target: ${ui.dn}\nOperation: MOVE → $selected\n$movePickHint"
+            pendingConfirm = { viewModel.move(selected) }
+        },
+    )
     if (showModify) {
         var attr by remember { mutableStateOf("") }
         var value by remember { mutableStateOf("") }
@@ -385,11 +376,15 @@ private fun OverviewEditor(ui: ObjectDetailsUiState, viewModel: ObjectDetailsVie
             )
             when (ui.kind) {
                 DirectoryObjectKind.USER, DirectoryObjectKind.CONTACT -> {
+                    ReadOnlyLine(stringResource(R.string.create_cn), ui.form.cn)
                     EditField(stringResource(R.string.user_field_given_name), ui.form.givenName, editable) {
                         viewModel.updateForm { f -> f.copy(givenName = it) }
                     }
                     EditField(stringResource(R.string.user_field_surname), ui.form.sn, editable) {
                         viewModel.updateForm { f -> f.copy(sn = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_initials), ui.form.initials, editable) {
+                        viewModel.updateForm { f -> f.copy(initials = it) }
                     }
                     EditField(stringResource(R.string.create_display_name), ui.form.displayName, editable) {
                         viewModel.updateForm { f -> f.copy(displayName = it) }
@@ -400,11 +395,48 @@ private fun OverviewEditor(ui: ObjectDetailsUiState, viewModel: ObjectDetailsVie
                     EditField(stringResource(R.string.user_field_phone), ui.form.telephoneNumber, editable) {
                         viewModel.updateForm { f -> f.copy(telephoneNumber = it) }
                     }
+                    EditField(stringResource(R.string.user_field_mobile), ui.form.mobile, editable) {
+                        viewModel.updateForm { f -> f.copy(mobile = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_website), ui.form.wwwHomePage, editable) {
+                        viewModel.updateForm { f -> f.copy(wwwHomePage = it) }
+                    }
                     EditField(stringResource(R.string.user_field_title), ui.form.title, editable) {
                         viewModel.updateForm { f -> f.copy(title = it) }
                     }
                     EditField(stringResource(R.string.user_field_department), ui.form.department, editable) {
                         viewModel.updateForm { f -> f.copy(department = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_company), ui.form.company, editable) {
+                        viewModel.updateForm { f -> f.copy(company = it) }
+                    }
+                    EditField(
+                        stringResource(R.string.user_field_street),
+                        ui.form.streetAddress,
+                        editable,
+                        multiline = true,
+                    ) {
+                        viewModel.updateForm { f -> f.copy(streetAddress = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_city), ui.form.city, editable) {
+                        viewModel.updateForm { f -> f.copy(city = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_state), ui.form.state, editable) {
+                        viewModel.updateForm { f -> f.copy(state = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_postal), ui.form.postalCode, editable) {
+                        viewModel.updateForm { f -> f.copy(postalCode = it) }
+                    }
+                    EditField(stringResource(R.string.user_field_country), ui.form.country, editable) {
+                        viewModel.updateForm { f -> f.copy(country = it) }
+                    }
+                    if (ui.isAd) {
+                        EditField(stringResource(R.string.user_field_country_name), ui.form.countryName, editable) {
+                            viewModel.updateForm { f -> f.copy(countryName = it) }
+                        }
+                        EditField(stringResource(R.string.user_field_country_code), ui.form.countryCode, editable) {
+                            viewModel.updateForm { f -> f.copy(countryCode = it) }
+                        }
                     }
                     EditField(stringResource(R.string.object_field_description), ui.form.description, editable) {
                         viewModel.updateForm { f -> f.copy(description = it) }
@@ -457,14 +489,21 @@ private fun OverviewEditor(ui: ObjectDetailsUiState, viewModel: ObjectDetailsVie
 }
 
 @Composable
-private fun EditField(label: String, value: String, editable: Boolean, onChange: (String) -> Unit) {
+private fun EditField(
+    label: String,
+    value: String,
+    editable: Boolean,
+    multiline: Boolean = false,
+    onChange: (String) -> Unit,
+) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
         enabled = editable,
         modifier = ComposeModifier.fillMaxWidth(),
-        singleLine = true,
+        singleLine = !multiline,
+        minLines = if (multiline) 2 else 1,
     )
 }
 

@@ -40,6 +40,34 @@ class DirectoryObjectClassifierTest {
     }
 
     @Test
+    fun classifyCnUsersAsExpandableContainer() {
+        assertEquals(
+            DirectoryObjectKind.CONTAINER,
+            DirectoryObjectClassifier.classify(
+                listOf("top"),
+                dn = "cn=Users,dc=loc,dc=jbsan,dc=fr",
+            ),
+        )
+        assertTrue(
+            DirectoryObjectClassifier.classify(
+                listOf("top"),
+                dn = "cn=Users,dc=example,dc=com",
+            ).isExpandable(),
+        )
+    }
+
+    @Test
+    fun classifySambaInetOrgPersonAsUserNotContainer() {
+        assertEquals(
+            DirectoryObjectKind.USER,
+            DirectoryObjectClassifier.classify(
+                listOf("top", "person", "organizationalPerson", "inetOrgPerson", "sambaSamAccount"),
+                dn = "cn=Maxime Boulinguiez,ou=Infra,dc=loc,dc=jbsan,dc=fr",
+            ),
+        )
+    }
+
+    @Test
     fun displayNamePrefersDisplayNameThenCn() {
         assertEquals(
             "Alice Martin",
