@@ -20,7 +20,7 @@ material3Adaptive = "1.1.0"
 workManager = "2.10.1"
 securityCrypto = "1.1.0-alpha06"
 desugarJdkLibs = "2.1.5"
-kerby = "2.1.0"
+kerby = "2.1.2"
 slf4j = "2.0.18"
 
 [libraries]
